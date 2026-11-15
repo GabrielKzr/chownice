@@ -1,358 +1,284 @@
 #!/usr/bin/env bash
-# Experimento físico QUIC/ICE direto: execute com papel a ou b em cada PC.
+# Experimento físico QUIC/ICE direto com configuração derivada da interface.
+# Uso: sudo bash sim/physical/run-physical-ice.sh <a|b|cleanup|stop> <interface> <IPv4-servidor>
+# Rede IPv4 pré-configurada, com um endereço global na interface e rotas na tabela main.
+# Servidor local: serviços iniciados em outra interface; remoto: serviços já ativos.
 set -euo pipefail
 
 repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$repo_dir"
 artifact_root="$repo_dir/sim/physical/artifacts"
 role=${1:-}
-if [[ $role != a && $role != b && $role != cleanup && $role != stop ]]; then
-    echo "Uso: sudo bash sim/physical/run-physical-ice.sh a (PC 1)" >&2
-    echo "  ou sudo bash sim/physical/run-physical-ice.sh b (PC 2)" >&2
-    echo "  ou sudo bash sim/physical/run-physical-ice.sh cleanup (recuperar PC 1)" >&2
-    echo "  ou sudo bash sim/physical/run-physical-ice.sh stop (liberar captura presa)" >&2
+interface=${2:-}
+server_ip=${3:-}
+if (( $# != 3 )) || [[ ! $role =~ ^(a|b|cleanup|stop)$ ]] ||
+   [[ ! $interface =~ ^[a-zA-Z0-9_.:-]+$ || $interface == lo ]]; then
+    echo "Uso: sudo bash sim/physical/run-physical-ice.sh <a|b|cleanup|stop> <interface> <IPv4-servidor>" >&2
     exit 1
 fi
-if [[ $role == stop ]]; then
-    if (( EUID != 0 )); then
-        echo "Execute: sudo bash sim/physical/run-physical-ice.sh stop" >&2
-        exit 1
-    fi
-    while read -r old_script_pid; do
-        [[ -n $old_script_pid && $old_script_pid != "$$" ]] || continue
-        mapfile -t child_pids < <(pgrep -P "$old_script_pid" || true)
-        if (( ${#child_pids[@]} )); then
-            kill -KILL "${child_pids[@]}" 2>/dev/null || true
-        fi
-        kill -KILL "$old_script_pid" 2>/dev/null || true
-    done < <(pgrep -f '^bash sim/physical/run-physical-ice.sh a$' || true)
-    while read -r capture_pid; do
-        [[ -n $capture_pid ]] || continue
-        capture_command=$(tr '\0' ' ' <"/proc/$capture_pid/cmdline" 2>/dev/null || true)
-        [[ $capture_command == *"$artifact_root/a-"* ]] || continue
-        echo "Parando captura física PID $capture_pid..."
-        kill -KILL "$capture_pid" 2>/dev/null || true
-    done < <(pgrep -x tcpdump || true)
-    sleep 0.2
-    if ip netns list | grep -q '^physical-peer-a '; then
-        while read -r namespace_pid; do
-            [[ -n $namespace_pid ]] && kill -KILL "$namespace_pid" 2>/dev/null || true
-        done < <(ip netns pids physical-peer-a)
-        if ip -n physical-peer-a link show enp0s31f6 >/dev/null 2>&1; then
-            ip netns exec physical-peer-a ip link set enp0s31f6 netns 1
-        fi
-        ip netns del physical-peer-a
-    fi
-    if ip link show enp0s31f6 >/dev/null 2>&1; then
-        ip link set enp0s31f6 up
-        ip addr replace 192.168.80.100/24 dev enp0s31f6
-        ip route replace default via 192.168.80.1 dev enp0s31f6 metric 100
-        if command -v nmcli >/dev/null; then timeout 10s nmcli device connect enp0s31f6 || true; fi
-    fi
-    echo "Execução física anterior encerrada."
-    exit 0
+python3 - "$server_ip" <<'PY'
+import ipaddress
+import sys
+ipaddress.IPv4Address(sys.argv[1])
+PY
+if (( EUID != 0 )); then
+    echo "Execute com sudo." >&2
+    exit 1
 fi
-cleanup_only=0
-if [[ $role == cleanup ]]; then
-    cleanup_only=1
-    role=a
-fi
+for tool in ip python3 flock timeout; do
+    command -v "$tool" >/dev/null || { echo "Ferramenta ausente: $tool" >&2; exit 1; }
+done
+state_file="/run/physical-ice-$interface.state"
 
 stop_process() {
     [[ -n $1 ]] || return 0
     kill -KILL "$1" 2>/dev/null || true
 }
 
-peer_bin="$repo_dir/build/all/source/tests/test_quic_ice"
-[[ -x "$peer_bin" ]] || {
-    echo "Binário ausente. Rode cmake --preset all e cmake --build --preset all --target test_quic_ice -j2" >&2
-    exit 1
-}
-command -v tcpdump >/dev/null || {
-    echo "tcpdump não encontrado; instale-o para gerar PCAPs" >&2
-    exit 1
-}
-command -v nsenter >/dev/null || {
-    echo "nsenter não encontrado; instale util-linux para capturar o peer A" >&2
-    exit 1
-}
-
-if [[ $role == b ]]; then
-    if (( EUID != 0 )); then
-        echo "Execute: sudo bash sim/physical/run-physical-ice.sh b" >&2
-        exit 1
-    fi
-    ip -br -4 addr | grep -q '192\.168\.80\.101/' || {
-        echo "PC 2 não tem 192.168.80.101; abortando" >&2
-        exit 1
-    }
-    log_dir="$artifact_root/b-$(date +%Y%m%d-%H%M%S)"
-    mkdir -p "$log_dir"
-    peer_b_interface=$(ip -o -4 addr show | awk '$4 ~ /^192\.168\.80\.101\// { print $2; exit }')
-    echo_pid=
-    capture_b_pid=
-    cleanup_b() {
-        set +e
-        trap - EXIT
-        trap '' HUP INT TERM
-        sleep 1
-        stop_process "$capture_b_pid"
-        stop_process "$echo_pid"
-        echo "PCAP peer B: $log_dir/peer-b-lan.pcap"
-        if [[ -n ${SUDO_UID:-} && -n ${SUDO_GID:-} ]]; then
-            chown "$SUDO_UID:$SUDO_GID" "$artifact_root"
-            chown -R "$SUDO_UID:$SUDO_GID" "$log_dir"
+# A configuração é lida como dados, sem executar conteúdo dos artefatos.
+restore_network() {
+    local saved_dir=$1 saved_namespace saved_interface saved_managed saved_host_namespace
+    saved_namespace=$(cat "$saved_dir/namespace")
+    saved_host_namespace="$saved_namespace-host"
+    saved_interface=$(cat "$saved_dir/interface")
+    if ip netns list | awk '{print $1}' | grep -Fxq "$saved_namespace"; then
+        while read -r namespace_pid; do
+            [[ -n $namespace_pid ]] && stop_process "$namespace_pid"
+        done < <(ip netns pids "$saved_namespace")
+        if ip -n "$saved_namespace" link show dev "$saved_interface" >/dev/null 2>&1; then
+            ip -n "$saved_namespace" link set dev "$saved_interface" netns "$saved_host_namespace" || return 1
         fi
-        echo "Logs em $log_dir"
-    }
-    trap cleanup_b EXIT
-    trap 'exit 129' HUP
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
-    tcpdump -i "$peer_b_interface" -nn -s 0 -U -Z root \
-        -w "$log_dir/peer-b-lan.pcap" 'udp or tcp port 5555' \
-        >"$log_dir/peer-b-tcpdump.log" 2>&1 &
-    capture_b_pid=$!
-    sleep 0.2
-    kill -0 "$capture_b_pid" 2>/dev/null || {
-        echo "Captura do peer B falhou; veja $log_dir/peer-b-tcpdump.log" >&2
-        exit 1
-    }
-    python3 -u - >"$log_dir/echo.log" 2>&1 <<'PY' &
-import socket
-with socket.socket() as listener:
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind(("127.0.0.1", 1234))
-    listener.listen()
-    print("Echo pronto", flush=True)
-    conn, _ = listener.accept()
-    with conn:
-        while data := conn.recv(8192):
-            conn.sendall(data)
-print("Echo encerrado", flush=True)
+        ip netns del "$saved_namespace" || return 1
+    fi
+    ip link show dev "$saved_interface" >/dev/null || return 1
+    ip link set dev "$saved_interface" up || return 1
+    python3 - "$saved_dir" <<'PY' || return 1
+import json
+from pathlib import Path
+import subprocess
+import sys
+p = Path(sys.argv[1])
+interface = (p / 'interface').read_text().strip()
+for address in json.loads((p / 'addresses.json').read_text())[0]['addr_info']:
+    family = '-4' if address['family'] == 'inet' else '-6'
+    cmd = ['ip', family, 'addr', 'replace', f"{address['local']}/{address['prefixlen']}", 'dev', interface]
+    if address.get('broadcast'):
+        cmd += ['broadcast', address['broadcast']]
+    if address.get('scope'):
+        cmd += ['scope', address['scope']]
+    if address.get('label'):
+        cmd += ['label', address['label']]
+    subprocess.run(cmd, check=True)
 PY
-    echo_pid=$!
-    ready=0
-    for _ in {1..30}; do
-        kill -0 "$echo_pid" 2>/dev/null || break
-        if grep -q '^Echo pronto$' "$log_dir/echo.log"; then ready=1; break; fi
-        sleep 0.1
+    local family route
+    local -a route_args
+    for family in 4 6; do
+        while IFS= read -r route; do
+            [[ -n $route ]] || continue
+            read -r -a route_args <<< "$route"
+            ip -"$family" route replace "${route_args[@]}" || return 1
+        done < "$saved_dir/routes-$family.txt"
     done
-    if (( ! ready )); then
-        echo "Echo não ficou pronto; veja $log_dir/echo.log" >&2
-        exit 1
+    if [[ $(cat "$saved_dir/link-up") == 0 ]]; then
+        ip link set dev "$saved_interface" down || return 1
     fi
-    echo "Iniciando peer B contra signaling 10.0.0.108:5555..."
-    cd "$repo_dir/source"
-    env PATCHBAY_ISP_ADDRESS=10.0.0.108 PATCHBAY_LOCAL_ADDRESS=192.168.80.101 \
-        "$peer_bin" -d -s 1234 127.0.0.1 2>&1 | tee "$log_dir/peer-b.log"
-    exit "${PIPESTATUS[0]}"
-fi
-
-if (( EUID != 0 )); then
-    echo "Execute: sudo bash sim/physical/run-physical-ice.sh a" >&2
-    exit 1
-fi
-
-namespace=physical-peer-a
-ethernet=enp0s31f6
-server_ip=10.0.0.108
-peer_ip=192.168.80.100
-peer_gateway=192.168.80.1
-log_dir="$artifact_root/a-$(date +%Y%m%d-%H%M%S)"
-if (( ! cleanup_only )); then mkdir -p "$log_dir"; fi
-
-turn_bin="$repo_dir/build/all/_deps/coturn-4.6.3/install/bin/turnserver"
-[[ -x "$turn_bin" ]] || {
-    echo "Binários ausentes. Rode cmake --preset all e cmake --build --preset all --target test_quic_ice -j2" >&2
-    exit 1
+    if ip netns list | awk '{print $1}' | grep -Fxq "$saved_host_namespace"; then
+        ip netns del "$saved_host_namespace" || return 1
+    fi
+    saved_managed=$(cat "$saved_dir/nm-managed")
+    if [[ $saved_managed == yes ]]; then
+        timeout 10s nmcli device set "$saved_interface" managed yes || return 1
+    fi
 }
 
-# Recupera uma execução anterior interrompida depois de mover a Ethernet.
-if ! ip link show "$ethernet" >/dev/null 2>&1 &&
-   ip netns list | grep -q "^$namespace "; then
-    if [[ -n $(ip netns pids "$namespace") ]]; then
-        echo "Namespace $namespace ainda tem processos; abortando" >&2
-        exit 1
+if [[ $role == cleanup || $role == stop ]]; then
+    [[ -f $state_file ]] || { echo "Nenhuma execução registrada para $interface."; exit 0; }
+    saved_dir=$(cat "$state_file")
+    if [[ $role == stop && -f $saved_dir/script-pid ]]; then
+        saved_pid=$(cat "$saved_dir/script-pid")
+        saved_command=$(tr '\0' ' ' <"/proc/$saved_pid/cmdline" 2>/dev/null || true)
+        if [[ $saved_command == *run-physical-ice.sh* ]]; then
+            kill -TERM "$saved_pid" 2>/dev/null || true
+        fi
     fi
-    if ! ip -n "$namespace" link show "$ethernet" >/dev/null 2>&1; then
-        echo "$ethernet ausente também em $namespace; abortando" >&2
-        exit 1
-    fi
-    echo "Recuperando $ethernet do namespace deixado pela execução anterior..."
-    ip netns exec "$namespace" ip link set "$ethernet" netns 1
-    ip netns del "$namespace"
-    ip link set "$ethernet" up
-    ip addr replace "$peer_ip/24" dev "$ethernet"
-    if command -v nmcli >/dev/null; then nmcli device connect "$ethernet" || true; fi
 fi
-
-# A interface pode já ter voltado ao host, mas o nome do namespace ter sobrado.
-if ip link show "$ethernet" >/dev/null 2>&1 &&
-   ip netns list | grep -q "^$namespace "; then
-    if [[ -n $(ip netns pids "$namespace") ]]; then
-        echo "Namespace $namespace ainda tem processos; abortando" >&2
-        exit 1
-    fi
-    ip netns del "$namespace"
-    echo "Namespace vazio $namespace removido."
-fi
-
-ip -br -4 addr show "$ethernet" | grep -q "$peer_ip/" || {
-    echo "$ethernet não tem $peer_ip; abortando" >&2
-    exit 1
-}
-ip -br -4 addr show wlp0s20f3 | grep -q "$server_ip/" || {
-    echo "Wi-Fi não tem $server_ip; abortando" >&2
-    exit 1
-}
-[[ -z $(ip netns list) ]] || {
-    echo "Já existe namespace de rede; confira antes de executar" >&2
-    exit 1
-}
-
-# Uma sessão interrompida pode deixar o signaling anterior escutando.
-# Encerra apenas processos cuja saída aponta para artefatos deste script.
-stale_signaling_found=0
-while read -r stale_pid; do
-    [[ -n $stale_pid ]] || continue
-    stale_stdout=$(readlink -f "/proc/$stale_pid/fd/1" 2>/dev/null || true)
-    if [[ $stale_stdout == "$artifact_root"/a-*/signaling.log ]]; then
-        echo "Encerrando signaling antigo da execução física (PID $stale_pid)..."
-        kill "$stale_pid" 2>/dev/null || true
-        stale_signaling_found=1
-    fi
-done < <(pgrep -f '^python3 -u source/tests/nice/test_ice_udp_transport/signaling.py$' || true)
-if (( stale_signaling_found )); then
-    for _ in {1..20}; do
-        [[ -n $(ss -H -ltn '( sport = :5555 )') ]] || break
-        sleep 0.1
+# O lock é liberado automaticamente na saída; filhos fecham o descritor.
+exec 9>"/run/lock/physical-ice-$interface.lock"
+flock -w 15 9 || { echo "Execução ativa para $interface; use stop." >&2; exit 1; }
+if [[ -f $state_file ]]; then
+    saved_dir=$(cat "$state_file")
+    for pid_file in "$saved_dir"/*.pid; do
+        [[ -f $pid_file ]] || continue
+        saved_pid=$(cat "$pid_file")
+        # Só encerra auxiliares que continuam associados aos logs desta execução.
+        saved_stdout=$(readlink -f "/proc/$saved_pid/fd/1" 2>/dev/null || true)
+        [[ $saved_stdout == "$saved_dir/"* ]] && stop_process "$saved_pid"
     done
+    restore_network "$saved_dir" || { echo "Recuperação incompleta; dados em $saved_dir" >&2; exit 1; }
+    rm -f "$state_file"
 fi
-
-if (( cleanup_only )); then
-    echo "Recuperação concluída. Estado atual:"
-    ip -br -4 addr show "$ethernet"
-    ss -H -ltn '( sport = :5555 )'
-    ss -H -lun '( sport = :3478 )'
+if [[ $role == cleanup || $role == stop ]]; then
+    echo "Recuperação concluída para $interface."
     exit 0
 fi
 
-[[ -z $(ss -H -ltn '( sport = :5555 )') && -z $(ss -H -lun '( sport = :3478 )') ]] || {
-    echo "Porta 5555 ou 3478 ocupada por outro processo:" >&2
-    ss -ltnp '( sport = :5555 )' >&2
-    ss -lunp '( sport = :3478 )' >&2
+for tool in tcpdump nsenter ss; do
+    command -v "$tool" >/dev/null || { echo "Ferramenta ausente: $tool" >&2; exit 1; }
+done
+peer_bin="$repo_dir/build/all/source/tests/test_quic_ice"
+[[ -x $peer_bin ]] || { echo "Compile o target test_quic_ice no preset all." >&2; exit 1; }
+ip link show dev "$interface" >/dev/null
+interface_json=$(ip -j -4 addr show dev "$interface")
+peer_ip=$(python3 -c '
+import json, sys
+addresses = [a["local"] for a in json.load(sys.stdin)[0]["addr_info"] if a["scope"] == "global"]
+if len(addresses) != 1:
+    sys.exit("A interface precisa ter exatamente um IPv4 global para identificar o peer sem ambiguidade.")
+print(addresses[0])
+' <<< "$interface_json")
+server_interface=$(ip -j -4 addr show | python3 -c '
+import json, sys
+server = sys.argv[1]
+print(next((i["ifname"] for i in json.load(sys.stdin) if any(a["local"] == server for a in i["addr_info"])), ""))
+' "$server_ip")
+if [[ $server_interface == "$interface" || $server_interface == lo ]]; then
+    echo "O servidor local precisa estar em outra interface, fora da LAN isolada do peer." >&2
     exit 1
-}
-
-turn_pid=
-signaling_pid=
-probe_pid=
-server_capture_pid=
-peer_capture_pid=
-namespace_created=0
-ethernet_moved=0
+fi
+turn_bin="$repo_dir/build/all/_deps/coturn-4.6.3/install/bin/turnserver"
+if [[ -n $server_interface ]]; then
+    [[ -x $turn_bin ]] || { echo "Binário coturn ausente: $turn_bin" >&2; exit 1; }
+    [[ -z $(ss -H -ltn '( sport = :5555 )') && -z $(ss -H -lun '( sport = :3478 )') ]] || {
+        echo "Porta 5555 ou 3478 ocupada; encerre o serviço anterior." >&2; exit 1;
+    }
+fi
+namespace="physical-peer-$role"
+if ip netns list | awk '{print $1}' | grep -Eq "^($namespace|$namespace-host)$"; then
+    echo "Namespace $namespace já existe sem recuperação registrada para esta interface." >&2
+    exit 1
+fi
+mkdir -p "$artifact_root"
+log_dir=$(mktemp -d "$artifact_root/$role-$(date +%Y%m%d-%H%M%S)-XXXXXX")
+printf '%s\n' "$interface" > "$log_dir/interface"
+printf '%s\n' "$namespace" > "$log_dir/namespace"
+printf '%s\n' "$$" > "$log_dir/script-pid"
+ip -j addr show dev "$interface" > "$log_dir/addresses.json"
+ip -j link show dev "$interface" | python3 -c 'import json,sys; print(int("UP" in json.load(sys.stdin)[0]["flags"]))' > "$log_dir/link-up"
+ip -4 route show table main dev "$interface" > "$log_dir/routes-4.txt"
+ip -6 route show table main dev "$interface" > "$log_dir/routes-6.txt"
+nm_managed=no
+if command -v nmcli >/dev/null; then
+    nm_managed=$(nmcli -g GENERAL.NM-MANAGED device show "$interface" 2>/dev/null || echo no)
+fi
+printf '%s\n' "$nm_managed" > "$log_dir/nm-managed"
+printf '%s\n' "$log_dir" > "$state_file"
+pids=()
+# Invocada pelo trap EXIT.
+# shellcheck disable=SC2317
 cleanup() {
+    local status=$?
     set +e
     trap - EXIT
     trap '' HUP INT TERM
-    echo "Encerrando capturas e serviços..."
-    # Dá tempo para tcpdump esvaziar a fila do kernel antes de remover a interface.
     sleep 1
-    echo "Parando capturador do peer A..."
-    stop_process "$peer_capture_pid"
-    echo "Parando capturador do servidor..."
-    stop_process "$server_capture_pid"
-    echo "Parando probe e serviços..."
-    stop_process "$probe_pid"
-    stop_process "$signaling_pid"
-    stop_process "$turn_pid"
-    sleep 0.2
-    if (( ethernet_moved )); then
-        ip netns exec "$namespace" ip link set "$ethernet" netns 1
-        ip link set "$ethernet" up
-        ip addr replace "$peer_ip/24" dev "$ethernet"
-        ip route replace default via "$peer_gateway" dev "$ethernet" metric 100
-        if command -v nmcli >/dev/null; then timeout 10s nmcli device connect "$ethernet" || true; fi
+    for pid in "${pids[@]}"; do stop_process "$pid"; done
+    if restore_network "$log_dir"; then
+        rm -f "$state_file"
+        echo "Limpeza concluída."
+    else
+        echo "Restauração incompleta. Execute cleanup com os mesmos parâmetros; dados em $log_dir." >&2
+        status=1
     fi
-    if (( namespace_created )); then timeout 5s ip netns del "$namespace"; fi
-    echo "PCAP servidor: $log_dir/server-wifi.pcap"
-    echo "PCAP peer A: $log_dir/peer-a-lan.pcap"
     if [[ -n ${SUDO_UID:-} && -n ${SUDO_GID:-} ]]; then
-        chown "$SUDO_UID:$SUDO_GID" "$artifact_root"
         chown -R "$SUDO_UID:$SUDO_GID" "$log_dir"
     fi
-    echo "Logs em $log_dir"
-    echo "Limpeza concluída."
+    echo "Logs e PCAPs em $log_dir"
+    exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-tcpdump -i wlp0s20f3 -nn -s 0 -U -Z root \
-    -w "$log_dir/server-wifi.pcap" 'udp or tcp port 5555' \
-    >"$log_dir/server-tcpdump.log" 2>&1 &
-server_capture_pid=$!
+if [[ $nm_managed == yes ]]; then nmcli device set "$interface" managed no; fi
+ip netns attach "$namespace-host" "$$"
+ip netns add "$namespace"
+ip link set dev "$interface" netns "$namespace"
+ip -n "$namespace" link set lo up
+ip -n "$namespace" link set dev "$interface" up
+# O mesmo snapshot usado na restauração fornece os endereços IPv4 do peer.
+python3 - "$log_dir/addresses.json" "$namespace" "$interface" <<'PY'
+import json
+import subprocess
+import sys
+for a in json.load(open(sys.argv[1]))[0]['addr_info']:
+    if a['family'] == 'inet':
+        subprocess.run(['ip', '-n', sys.argv[2], 'addr', 'replace',
+                        f"{a['local']}/{a['prefixlen']}", 'dev', sys.argv[3]], check=True)
+PY
+while IFS= read -r route; do
+    [[ -n $route ]] || continue
+    read -r -a route_args <<< "$route"
+    ip -n "$namespace" -4 route replace "${route_args[@]}"
+done < "$log_dir/routes-4.txt"
+ip -n "$namespace" route get "$server_ip" | tee "$log_dir/route.txt"
+
+nsenter --net="/var/run/netns/$namespace" -- tcpdump -i "$interface" -nn -s 0 -U -Z root \
+    -w "$log_dir/peer-$role-lan.pcap" 'udp or tcp port 5555' >"$log_dir/peer-$role-tcpdump.log" 2>&1 9>&- &
+pids+=("$!")
+printf '%s\n' "$!" > "$log_dir/capture.pid"
 sleep 0.2
-kill -0 "$server_capture_pid" 2>/dev/null || {
-    echo "Captura do servidor falhou; veja $log_dir/server-tcpdump.log" >&2
-    exit 1
-}
-
-"$turn_bin" -n \
-    --listening-ip="$server_ip" --listening-ip=127.0.0.1 \
-    --relay-ip="$server_ip" --listening-port=3478 \
-    --min-port=49160 --max-port=49200 \
-    --lt-cred-mech --realm=ice-test --user=ice-test:ice-test-password \
-    --no-tcp --no-tls --no-dtls --no-cli \
-    --log-file=stdout --pidfile=/dev/null >"$log_dir/turn.log" 2>&1 &
-turn_pid=$!
-
-python3 -u source/tests/nice/test_ice_udp_transport/signaling.py \
-    >"$log_dir/signaling.log" 2>&1 &
-signaling_pid=$!
-
-ready=0
-for _ in {1..50}; do
-    kill -0 "$turn_pid" 2>/dev/null || break
-    kill -0 "$signaling_pid" 2>/dev/null || break
-    if grep -q '^READY$' "$log_dir/signaling.log"; then ready=1; break; fi
-    sleep 0.1
-done
-if (( ! ready )); then
-    echo "Signaling não ficou pronto; veja $log_dir/signaling.log" >&2
-    exit 1
+kill -0 "${pids[-1]}" || { echo "Falha ao iniciar captura." >&2; exit 1; }
+if [[ -n $server_interface ]]; then
+    tcpdump -i "$server_interface" -nn -s 0 -U -Z root \
+        -w "$log_dir/server.pcap" 'udp or tcp port 5555' >"$log_dir/server-tcpdump.log" 2>&1 9>&- &
+    pids+=("$!"); printf '%s\n' "$!" > "$log_dir/server-capture.pid"
+    sleep 0.2
+    kill -0 "${pids[-1]}" || { echo "Falha na captura do servidor." >&2; exit 1; }
+    "$turn_bin" -n --listening-ip="$server_ip" --listening-ip=127.0.0.1 \
+        --relay-ip="$server_ip" --listening-port=3478 --min-port=49160 --max-port=49200 \
+        --lt-cred-mech --realm=ice-test --user=ice-test:ice-test-password \
+        --no-tcp --no-tls --no-dtls --no-cli --log-file=stdout --pidfile=/dev/null \
+        >"$log_dir/turn.log" 2>&1 9>&- &
+    pids+=("$!"); printf '%s\n' "$!" > "$log_dir/turn.pid"
+    python3 -u source/tests/nice/test_ice_udp_transport/signaling.py \
+        >"$log_dir/signaling.log" 2>&1 9>&- &
+    pids+=("$!"); printf '%s\n' "$!" > "$log_dir/signaling.pid"
+    ready=0
+    for _ in {1..50}; do
+        if grep -q '^READY$' "$log_dir/signaling.log"; then ready=1; break; fi
+        sleep 0.1
+    done
+    (( ready )) || { echo "Serviços não ficaram prontos; veja os logs." >&2; exit 1; }
 fi
 
-ip netns add "$namespace"
-namespace_created=1
-ip link set "$ethernet" netns "$namespace"
-ethernet_moved=1
-ip -n "$namespace" link set lo up
-ip -n "$namespace" addr replace "$peer_ip/24" dev "$ethernet"
-ip -n "$namespace" link set "$ethernet" up
-ip -n "$namespace" route replace default via "$peer_gateway"
-ip netns exec "$namespace" ip route get "$server_ip" | tee "$log_dir/route.txt"
-
-# Evita a porta TCP local fixa de uma execução anterior ainda ativa.
-local_tcp_port=$(ip netns exec "$namespace" python3 -c \
-    'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
-echo "Porta TCP local do peer A: $local_tcp_port" | tee "$log_dir/local-tcp-port.txt"
-
-nsenter --net="/var/run/netns/$namespace" -- \
-    tcpdump -i "$ethernet" -nn -s 0 -U -Z root \
-    -w "$log_dir/peer-a-lan.pcap" 'udp or tcp port 5555' \
-    >"$log_dir/peer-a-tcpdump.log" 2>&1 &
-peer_capture_pid=$!
-sleep 0.2
-kill -0 "$peer_capture_pid" 2>/dev/null || {
-    echo "Captura do peer A falhou; veja $log_dir/peer-a-tcpdump.log" >&2
-    exit 1
-}
-
-ip netns exec "$namespace" env LOCAL_TCP_PORT="$local_tcp_port" \
-    python3 -u - >"$log_dir/probe.log" 2>&1 <<'PY' &
+echo "Peer $role: $peer_ip em $interface; servidor $server_ip:5555."
+if [[ $role == b ]]; then
+    ip netns exec "$namespace" python3 -u - >"$log_dir/echo.log" 2>&1 9>&- <<'PY' &
+import socket
+with socket.socket() as listener:
+    listener.bind(('127.0.0.1', 0))
+    listener.listen()
+    print(listener.getsockname()[1], flush=True)
+    conn, _ = listener.accept()
+    with conn:
+        while data := conn.recv(8192):
+            conn.sendall(data)
+PY
+    pids+=("$!"); printf '%s\n' "$!" > "$log_dir/echo.pid"
+    for _ in {1..30}; do
+        [[ -s $log_dir/echo.log ]] && break
+        sleep 0.1
+    done
+    read -r local_tcp_port < "$log_dir/echo.log"
+    [[ $local_tcp_port =~ ^[0-9]+$ ]] || { echo "Echo não ficou pronto." >&2; exit 1; }
+    peer_mode=-s
+else
+    local_tcp_port=$(ip netns exec "$namespace" python3 -c \
+        'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
+    peer_mode=-c
+    ip netns exec "$namespace" env LOCAL_TCP_PORT="$local_tcp_port" \
+        python3 -u - >"$log_dir/probe.log" 2>&1 9>&- <<'PY' &
 import socket
 import time
 import os
@@ -381,40 +307,35 @@ with conn:
     assert conn.recv(1) == b"", "Dados extras"
 print("OK: 16384 bytes íntegros e EOF", flush=True)
 PY
-probe_pid=$!
-
-echo "STUN/signaling prontos. Inicie agora o test_quic_ice do peer B no PC 2."
-echo "Aguardando o PC 2 conectar ao signaling por até 120 segundos..."
-connected=0
-for _ in {1..1200}; do
-    kill -0 "$signaling_pid" 2>/dev/null || break
-    if [[ -n $(ss -H -tn state established '( sport = :5555 )') ]]; then
-        connected=1
-        break
-    fi
-    sleep 0.1
-done
-if (( ! connected )); then
-    echo "Peer B não conectou ao signaling; veja $log_dir" >&2
-    exit 1
+    probe_pid=$!
+    pids+=("$probe_pid"); printf '%s\n' "$probe_pid" > "$log_dir/probe.pid"
 fi
-
-echo "Peer B conectou. Iniciando peer A..."
+printf '%s\n' "$local_tcp_port" > "$log_dir/local-tcp-port.txt"
+# O servidor local em A aguarda B, como no experimento original.
+if [[ $role == a && -n $server_interface ]]; then
+    echo "Serviços prontos. Aguardando peer B por até 120 segundos..."
+    connected=0
+    for _ in {1..1200}; do
+        if [[ -n $(ss -H -tn state established '( sport = :5555 )') ]]; then connected=1; break; fi
+        sleep 0.1
+    done
+    (( connected )) || { echo "Peer B não conectou ao signaling." >&2; exit 1; }
+fi
+cd "$repo_dir/source"
+ip netns exec "$namespace" env PATCHBAY_ISP_ADDRESS="$server_ip" PATCHBAY_LOCAL_ADDRESS="$peer_ip" \
+    "$peer_bin" -d "$peer_mode" "$local_tcp_port" 127.0.0.1 \
+    >"$log_dir/peer-$role.log" 2>&1 9>&- &
+peer_pid=$!
+pids+=("$peer_pid"); printf '%s\n' "$peer_pid" > "$log_dir/peer.pid"
 set +e
-(
-    cd "$repo_dir/source"
-    ip netns exec "$namespace" env \
-        PATCHBAY_ISP_ADDRESS="$server_ip" \
-        PATCHBAY_LOCAL_ADDRESS="$peer_ip" \
-        "$peer_bin" -d -c "$local_tcp_port" 127.0.0.1
-) 2>&1 | tee "$log_dir/peer-a.log"
-peer_status=${PIPESTATUS[0]}
-if (( peer_status != 0 )); then
-    echo "Peer A falhou; veja $log_dir/peer-a.log e a saída do PC 2" >&2
-    exit "$peer_status"
+wait "$peer_pid"
+peer_status=$?
+cat "$log_dir/peer-$role.log"
+(( peer_status == 0 )) || exit "$peer_status"
+if [[ $role == a ]]; then
+    wait "$probe_pid"
+    probe_status=$?
+    cat "$log_dir/probe.log"
+    exit "$probe_status"
 fi
-wait "$probe_pid"
-probe_status=$?
-probe_pid=
-cat "$log_dir/probe.log"
-exit "$probe_status"
+exit 0

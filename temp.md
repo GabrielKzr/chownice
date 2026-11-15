@@ -1,330 +1,119 @@
-# Texto sugerido para o capítulo de implementação
-
-Substituir a subseção provisória “Infraestrutura controlada” em
-`docs/text/src/5_implementation.tex` pelo trecho abaixo.
-
-```latex
-\subsection{Infraestrutura física controlada}
-\label{sec:physical_infrastructure}
-
-Além do ambiente baseado no PatchBay, foi preparada uma
-infraestrutura com dois computadores e três roteadores físicos.
-O objetivo dessa montagem é exercitar a implementação utilizando
-interfaces e equipamentos reais de encaminhamento e tradução
-de endereços, mantendo a organização lógica da topologia ICE
-descrita na Seção~\ref{sec:ice_topology}.
-
-Um roteador base, com endereço \texttt{10.0.0.1}, fornece a rede
-\texttt{10.0.0.0/24}, à qual estão conectados o servidor de
-serviços auxiliares e as interfaces WAN dos dois roteadores NAT.
-O roteador A utiliza o endereço WAN \texttt{10.0.0.117}, enquanto
-o roteador B utiliza \texttt{10.0.0.40}. Ambos disponibilizam
-uma LAN com prefixo \texttt{192.168.80.0/24} e endereço de
-gateway \texttt{192.168.80.1}. Essas LANs são segmentos separados,
-apesar de utilizarem o mesmo endereçamento. Os peers A e B
-utilizam, respectivamente, os endereços
-\texttt{192.168.80.100} e \texttt{192.168.80.101}.
-
-% Inserir aqui a figura da topologia criada pelo usuário.
-% Usar \label{fig:physical_topology} imediatamente após a \caption.
-% Se a figura utilizar eth0/eth1 como nomes genéricos de interfaces,
-% informar na legenda que esses nomes são ilustrativos.
-
-O primeiro computador acumula duas funções: executar o peer A
-e hospedar os serviços auxiliares. Sua interface Ethernet
-conecta o peer A à LAN do roteador A, enquanto a interface
-Wi-Fi conecta o servidor à rede do roteador base, com endereço
-\texttt{10.0.0.108}. Nesse servidor, o \texttt{coturn}
-disponibiliza STUN/TURN por UDP na porta 3478, e o serviço
-de sinalização utiliza TCP na porta 5555. O segundo computador
-executa o peer B, conectado à LAN do roteador B.
-
-Para separar as funções executadas no primeiro computador,
-a interface Ethernet do peer A é movida para um
-\textit{network namespace} próprio. Esse namespace recebe
-uma rota padrão pelo roteador A. A separação impede que o
-acesso ao servidor, hospedado no mesmo computador, seja
-resolvido diretamente pela pilha de rede local, contornando
-o roteador NAT. Diferentemente do ambiente PatchBay, nesse
-caso o namespace isola uma interface física, enquanto o
-encaminhamento e a tradução de endereços são realizados
-pelos roteadores externos.
-
-A execução é organizada por um script com papéis distintos
-para os dois computadores. No papel A, são preparados os
-serviços auxiliares, o namespace e a aplicação geradora de
-dados. No papel B, são iniciados o peer remoto e um serviço
-TCP de echo. Esse serviço permite verificar a integração
-com aplicações TCP locais sem exigir alterações na
-implementação do transporte.
-
-O script também inicia capturas nas interfaces utilizadas
-pelo peer A, pelo servidor e pelo peer B. Os arquivos PCAP
-e os registros dos processos são armazenados por execução,
-permitindo relacionar a negociação ICE, o estabelecimento
-QUIC e a comunicação entre os gateways. Os resultados
-obtidos nesse ambiente são apresentados na
-Seção~\ref{sec:physical_results}.
-```
-
-## Referência no capítulo de resultados
-
-Em `docs/text/src/6_results.tex`, acrescentar o label logo após o título
-da seção já existente:
-
-```latex
-\section{Avaliação em infraestrutura física controlada}
-\label{sec:physical_results}
-```
-
-## Complemento opcional
-
-Se disponíveis, acrescentar os modelos e firmwares dos roteadores em uma
-tabela de equipamentos. Não atribuir a classificação `Moderate` do PatchBay
-aos roteadores físicos sem uma verificação específica desse comportamento.
-
-O texto descreve a montagem e a execução. A transferência verificada de
-dados, os endpoints selecionados, a análise dos pacotes e os limites das
-capturas devem ser apresentados no capítulo de resultados.
-
-# Proposta para a seção de resultados da infraestrutura física
-
-Sugestão: usar três subseções. A configuração deve apenas identificar as
-condições desta avaliação e remeter à montagem descrita na implementação.
-Depois, apresentar a evidência de estabelecimento e transferência. Por fim,
-comparar o comportamento funcional com o caso QUIC/ICE direto do PatchBay.
-
-O exemplo abaixo usa uma única execução pareada:
-
-- A: `sim/physical/artifacts/a-20261110-200717/`.
-- B: `sim/physical/artifacts/b-20261110-200730/`.
-- Endpoints selecionados: A `10.0.0.117:35538`, B `10.0.0.40:52875`.
-
-Os horários dos diretórios diferem porque cada computador iniciou seu script
-separadamente. O pareamento é sustentado pelos endpoints recíprocos dos logs,
-e não apenas pela proximidade dos horários.
-
-Não misturar as portas dessa execução com as do par A201935/B201944 usado
-em exemplos anteriores. Os IPs da topologia são os mesmos, mas as portas mudam.
-
-## Texto sugerido
-
-Substituir a seção física provisória em `docs/text/src/6_results.tex` pelo
-trecho abaixo. Manter uma única definição de `sec:physical_results` no TCC.
-
-```latex
-\section{Avaliação em infraestrutura física controlada}
-\label{sec:physical_results}
-
-A avaliação física examinou o estabelecimento de uma conexão
-QUIC sobre ICE e a transferência de dados de uma aplicação TCP
-entre computadores conectados por roteadores NAT físicos.
-O objetivo foi verificar, nesse ambiente, a sequência funcional
-exercitada pelo caso C10 do PatchBay: descoberta de endpoints,
-seleção de caminho direto, estabelecimento QUIC e entrega
-dos dados ao serviço remoto. A análise utiliza os registros
-dos dois gateways e as capturas realizadas durante a execução.
-
-\subsection{Configuração e identificação da execução}
-
-A montagem segue a Seção~\ref{sec:physical_infrastructure},
-com os dois gateways em LANs distintas e os serviços auxiliares
-acessíveis pela rede do roteador base. O namespace do gateway A
-separa sua interface Ethernet da interface utilizada pelo servidor,
-de modo que o acesso aos serviços auxiliares percorra o roteador A.
-O gateway B executa em outro computador, conectado ao roteador B.
-
-O experimento utiliza o mesmo padrão binário de 16384 bytes
-do teste de tunelamento TCP no PatchBay. Uma aplicação local
-no gateway A envia os dados à entrada do túnel; no gateway B,
-o serviço TCP de echo devolve o conteúdo recebido. Assim,
-a comparação mantém o critério de integridade dos dados,
-embora a infraestrutura de encaminhamento seja diferente.
-
-% Se disponíveis, registrar aqui modelos/firmwares dos roteadores e
-% sistemas operacionais dos dois computadores. Não copiar o ambiente
-% Rocky Linux da coleta PatchBay sem conferir os equipamentos físicos.
-% A figura da montagem já deve aparecer na implementação; referenciá-la
-% aqui caso necessário, evitando inserir a mesma imagem novamente.
-
-Para a análise detalhada, foram selecionados os registros
-\texttt{a-20261110-200717} e \texttt{b-20261110-200730}.
-Os endpoints informados em cada gateway são recíprocos,
-permitindo associar os dois conjuntos de artefatos à mesma
-comunicação. A Tabela~\ref{tab:physical_selected_endpoints}
-apresenta os endereços locais e os endpoints reflexivos
-selecionados nessa execução.
+```text
+O QUICv1 utiliza pacotes com \textit{long header} (\texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{Retry}) durante o estabelecimento e a retomada de conexões, enquanto os pacotes com \textit{short header} (\texttt{1-RTT}) transportam dados e controle a partir da disponibilização das chaves de aplicação. Há ainda o pacote \textit{Version Negotiation}, cujo formato independe da versão do protocolo e permite informar as versões suportadas pelo servidor \citep{rfc8999, rfc9000}. A Tabela~\ref{tab:quic_packet_types} resume a função de cada tipo.
 
 \begin{table}[htbp]
     \centering
-    \caption{Endereçamento e endpoints selecionados na execução física analisada.}
-    \label{tab:physical_selected_endpoints}
-    \begin{tabular}{@{}p{0.20\textwidth}p{0.32\textwidth}p{\dimexpr0.48\textwidth-4\tabcolsep\relax}@{}}
+    \begin{tabular}{@{}p{0.24\textwidth}p{\dimexpr0.76\textwidth-2\tabcolsep\relax}@{}}
         \toprule
-        \textbf{Gateway} & \textbf{IP local} & \textbf{Endpoint reflexivo selecionado} \\
+        \textbf{Tipo de pacote} & \textbf{Função} \\
         \midrule
-        A & \texttt{192.168.80.100} & \texttt{10.0.0.117:35538} \\
-        B & \texttt{192.168.80.101} & \texttt{10.0.0.40:52875} \\
+        \texttt{Initial} & Transporta as primeiras mensagens do \textit{handshake} TLS. Os datagramas enviados pelo cliente que contêm esse tipo de pacote devem ter ao menos 1200 bytes. \\
+        \texttt{Handshake} & Transporta as mensagens TLS que completam a negociação criptográfica após o \texttt{ServerHello}. \\
+        \texttt{Retry} & Permite ao servidor solicitar a validação do endereço do cliente antes de prosseguir com o \textit{handshake}. \\
+        \texttt{0-RTT} & Transporta dados antecipados do cliente na retomada de uma sessão anterior. Esse recurso não foi avaliado nos experimentos. \\
+        \texttt{1-RTT} & Transporta dados de aplicação e informações de controle após a disponibilização das chaves de aplicação. \\
+        \textit{Version Negotiation} & Informa as versões suportadas pelo servidor quando a versão proposta pelo cliente não é aceita. \\
         \bottomrule
     \end{tabular}
+    \caption{Tipos de pacotes QUIC e suas funções. Fonte: elaborado com base em \citep{rfc8999, rfc9000, rfc9001}.}
+    \label{tab:quic_packet_types}
 \end{table}
-
-Esses endpoints pertencem à rede externa às LANs dos gateways,
-mas continuam sendo endereços privados da infraestrutura
-controlada. Portanto, o experimento não representa uma
-comunicação entre redes independentes pela Internet pública.
-
-\subsection{Estabelecimento do caminho e transferência de dados}
-
-O log do gateway A registra o estado ICE READY com o par
-\texttt{10.0.0.117:35538} para \texttt{10.0.0.40:52875};
-o gateway B registra os mesmos endpoints em ordem inversa.
-Ambos identificam o caminho como direto/reflexivo.
-Esses registros demonstram que o caminho foi selecionado
-utilizando os endpoints externos aos dois NATs.
-
-% LOGS: seleção do caminho ICE e estabelecimento QUIC.
-% Arquivo: sim/physical/artifacts/a-20261110-200717/peer-a.log
-% Linha 2: Peer A ICE READY: 10.0.0.117:35538 -> 10.0.0.40:52875; direto/reflexivo.
-% Linha 12: [DEBUG] UDP transport BIO attached to OpenSSL QUIC
-% Linha 13: [DEBUG] Connected to QUIC server
-% Linha 14: [DEBUG] QUIC data stream 0 and control stream 4 established
-%
-% Arquivo: sim/physical/artifacts/b-20261110-200730/peer-b.log
-% Linha 2: Peer B ICE READY: 10.0.0.40:52875 -> 10.0.0.117:35538; direto/reflexivo.
-% Linha 12: [DEBUG] UDP transport BIO attached to OpenSSL QUIC
-% Linha 13: [DEBUG] QUIC server listening
-% Linha 14: [DEBUG] Connected to QUIC client
-% Linha 15: [DEBUG] QUIC data stream 0 and control stream 4 established
-% Os endpoints recíprocos associam os registros dos dois gateways.
-% Os registros de conexão/streams corroboram o estabelecimento QUIC;
-% apenas ICE READY não comprovaria a conclusão dessa etapa.
-
-Nas capturas das interfaces LAN, os pacotes de cada gateway
-são enviados ao endpoint traduzido do outro. Esse tráfego
-inclui as verificações STUN entre os gateways e o estabelecimento
-QUIC posterior. A observação nos dois extremos permite
-relacionar o par escolhido pelo ICE à comunicação que
-efetivamente atravessou os roteadores físicos.
-
-% FIGURA FÍSICA 1: inserir aqui dois painéis, um por gateway.
-% A: sim/physical/artifacts/a-20261110-200717/peer-a-lan.pcap
-% B: sim/physical/artifacts/b-20261110-200730/peer-b-lan.pcap
-% Filtro em ambos: udp.port == 35538 || udp.port == 52875
-% Mostrar as verificações STUN e o início da conexão QUIC.
-% Na LAN A, a origem local é 192.168.80.100 e o remoto é 10.0.0.40.
-% Na LAN B, a origem local é 192.168.80.101 e o remoto é 10.0.0.117.
-% Selecionar o início da conexão e destacar portas, origem/destino e
-% identificação dos pacotes. Não atribuir as portas de outra execução.
-% Sugestão de label: fig:physical_ice_quic.
-
-Após o estabelecimento QUIC, os dois gateways registraram
-16384 bytes enviados e recebidos e a conclusão do fechamento.
-O gerador local também informou que a resposta do echo era
-idêntica ao conteúdo enviado, seguida de EOF. A evidência
-de integridade vem dessa comparação byte a byte, enquanto
-as capturas permitem identificar o percurso e a sequência
-de protocolos utilizados.
-
-% LOGS: exemplo de encaminhamento dos dados TCP pelo backend QUIC.
-% Arquivo: sim/physical/artifacts/a-20261110-200717/peer-a.log
-% Linha 16: [DEBUG] Received 1024 bytes from TCP tunnel
-% Linha 17: [DEBUG] Sending 1024 bytes through QUIC
-% Linha 18: [DEBUG] Sent 1024 bytes through QUIC
-% Essas linhas ilustram um bloco; o total é conferido no resumo final
-% e a igualdade integral dos bytes é verificada pelo probe.
-%
-% LOGS: totais e fechamento nos dois gateways.
-% Arquivo: sim/physical/artifacts/a-20261110-200717/peer-a.log
-% Linha 96: [DEBUG] Received 0 bytes from TCP tunnel
-% Linha 98: [DEBUG] ossl_quic_deinit()
-% Linha 99: Peer A QUIC/ICE: handshake, 16384 bytes nos dois sentidos e fechamento completos.
-%
-% Arquivo: sim/physical/artifacts/b-20261110-200730/peer-b.log
-% Linha 85: [DEBUG] ossl_quic_deinit()
-% Linha 86: Peer B QUIC/ICE: handshake, 16384 bytes nos dois sentidos e fechamento completos.
-%
-% LOGS: comparação integral do payload e conclusão do serviço echo.
-% Arquivo: sim/physical/artifacts/a-20261110-200717/probe.log
-% Linha 1: OK: 16384 bytes íntegros e EOF
-%
-% Arquivo: sim/physical/artifacts/b-20261110-200730/echo.log
-% Linha 1: Echo pronto
-% Linha 2: Echo encerrado
-% O probe compara a resposta byte a byte e verifica EOF. O resumo
-% de cada peer corrobora os contadores e o fechamento da conexão.
-
-\begin{quote}
-\begin{verbatim}
-OK: 16384 bytes íntegros e EOF
-\end{verbatim}
-\end{quote}
-
-% Comprovação do conteúdo: probe.log do diretório A selecionado.
-% Complementar com a última linha de peer-a.log e peer-b.log,
-% que registra handshake, bytes nos dois sentidos e fechamento.
-% A listagem acima já apresenta o resultado do probe; uma captura de
-% terminal é opcional. Não alegar leitura do payload cifrado na PCAP.
-
-A conclusão do serviço echo no gateway B e o EOF observado
-pelo gerador no gateway A mostram que a verificação abrangeu
-a entrega aos serviços TCP locais. Assim, a avaliação não se
-limitou à obtenção do estado ICE READY ou à abertura da conexão
-QUIC: incluiu o transporte e o retorno do conteúdo de aplicação.
-
-\subsection{Comparação com o ambiente PatchBay e alcance dos resultados}
-
-A Tabela~\ref{tab:physical_patchbay_comparison} relaciona as
-verificações do caso C10 às observações do ambiente físico.
-A comparação considera o comportamento funcional da integração,
-mantendo o conteúdo transferido e o uso de um caminho direto
-como pontos comuns entre os ambientes.
-
-\begin{table}[htbp]
-    \centering
-    \small
-    \caption{Correspondência funcional entre o caso C10 do PatchBay e a execução física analisada.}
-    \label{tab:physical_patchbay_comparison}
-    \begin{tabular}{@{}p{0.27\textwidth}p{0.34\textwidth}p{\dimexpr0.39\textwidth-4\tabcolsep\relax}@{}}
-        \toprule
-        \textbf{Aspecto} & \textbf{PatchBay -- C10} & \textbf{Infraestrutura física} \\
-        \midrule
-        Encaminhamento & Roteadores configurados em namespaces. & Roteadores e enlaces físicos. \\
-        Negociação ICE & Seleção de caminho direto com candidatos reflexivos. & Seleção de caminho direto com endpoints externos aos dois NATs. \\
-        Estabelecimento & Conexão QUIC sobre o caminho ICE selecionado. & Handshake QUIC concluído após a negociação ICE. \\
-        Dados da aplicação & Echo binário de 16384 bytes comparado byte a byte. & Mesmo padrão e tamanho, com resposta íntegra e EOF. \\
-        Encerramento & Conclusão do túnel e fechamento dos peers. & Fechamento registrado pelos dois gateways e conclusão do echo. \\
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-Os resultados físicos mostram que o funcionamento observado
-no caso direto do PatchBay também foi obtido com tradução e
-encaminhamento realizados pelos equipamentos externos.
-A mesma implementação integrou a negociação ICE, o transporte
-QUIC e as aplicações TCP locais nesse arranjo.
-
-O alcance dessa observação é restrito à topologia e aos equipamentos
-utilizados. A coleta física analisada não exercita TURN obrigatório,
-sessão prolongada, perdas induzidas ou mudança de rede.
-Também não caracteriza sistematicamente o comportamento dos NATs
-nem estabelece diferenças de latência ou vazão em relação ao
-PatchBay. Esses aspectos exigiriam procedimentos e medições
-específicos, além da verificação funcional realizada.
 ```
 
-## O que acrescentar como comprovação
+```text
+\subsubsection{Proteção de pacotes}
+\label{sec:quic_packet_protection}
 
-1. **Uma figura com dois painéis de PCAP**, logo após a descrição da
-   negociação: uma captura da LAN A e outra da LAN B, usando somente
-   a execução escolhida. Destacar STUN, endpoints e estabelecimento QUIC.
-2. **O resultado do probe e dos dois peers**, após a descrição da transferência.
-   O trecho `OK: 16384 bytes íntegros e EOF` já está no texto; pode permanecer
-   como listagem. Os dois logs corroboram bytes e fechamento em ambos os lados.
-3. **A tabela comparativa**, que relaciona as verificações ao C10 em vez
-   de repetir apenas “funcionou”. Não usar a contagem de pacotes ou a duração
-   total das execuções como comparação de desempenho.
+A proteção dos pacotes QUIC varia conforme a etapa da conexão e complementa a proteção de cabeçalho descrita na Seção~\ref{sec:quic_header_protection}. O protocolo utiliza chaves distintas para os níveis \textit{Initial}, \textit{0-RTT}, \textit{Handshake} e \textit{1-RTT}, cujas garantias e limitações são resumidas a seguir \citep{rfc9001}.
 
-Não é necessário inserir outra figura da topologia nesta seção se ela já
-estiver no capítulo de implementação. Evitar usar as capturas menores do
-gateway B de outras rodadas como se representassem esta execução.
+Nos pacotes \texttt{Initial}, as chaves derivam de informações públicas, de modo que sua proteção não oferece confidencialidade contra observadores do tráfego. Os pacotes \texttt{Handshake} e \texttt{1-RTT} utilizam chaves derivadas da negociação TLS~1.3 para proteger, respectivamente, as mensagens posteriores ao \texttt{ServerHello} e os dados e controles da conexão. Os pacotes \texttt{0-RTT} utilizam chaves associadas a uma sessão anterior, mas não oferecem sigilo futuro (\textit{forward secrecy}) e estão sujeitos à reprodução de mensagens (\textit{replay}), exigindo cuidados da aplicação. Já o pacote \texttt{Retry} não é cifrado e possui uma etiqueta de integridade calculada com parâmetros públicos, que não autentica o servidor; o pacote \textit{Version Negotiation} não possui proteção criptográfica. Os mecanismos de derivação de chaves e de proteção são definidos no RFC~9001 \citep{rfc9001}.
+```
+
+```text
+\subsubsection{\textit{Frames} do QUIC}
+
+Os \textit{frames} são as unidades de informação transportadas no conteúdo dos pacotes QUIC, e um mesmo pacote pode conter vários deles, com funções de dados ou de controle \citep{rfc9000}. Entre os principais tipos, o \texttt{CRYPTO} transporta mensagens do \textit{handshake} TLS; o \texttt{STREAM}, dados das aplicações; e o \texttt{ACK}, confirmações de recebimento de pacotes. O \texttt{PING} solicita uma confirmação do receptor sem transportar dados de aplicação, enquanto o \texttt{CONNECTION\_\allowbreak{}CLOSE} sinaliza o encerramento da conexão. Os pacotes \texttt{Retry} e \textit{Version Negotiation} não transportam \textit{frames}. A especificação dos formatos e dos tipos permitidos em cada pacote é definida no RFC~9000 \citep{rfc9000}.
+```
+
+```text
+\subsection{Retomada de sessão (0-RTT)}
+\label{sec:0rtt_connection_recovery}
+
+A retomada de sessão permite que o cliente utilize informações de uma conexão anterior com o mesmo servidor para enviar dados de aplicação antes de concluir um novo \textit{handshake}. A partir de uma chave pré-compartilhada (PSK), obtida por meio de um \textit{session ticket} do TLS~1.3, o cliente deriva as chaves 0-RTT e envia esses dados junto ao primeiro pacote \texttt{Initial}, sem aguardar uma resposta do servidor \citep{rfc9001}. O restante da negociação segue o fluxo 1-RTT. A Figura~\ref{fig:quic0rtt_vs_tcptls} compara a retomada de sessão no QUIC e no TCP com TLS.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.8\linewidth]{fig/QUIC/quic0rtt_vs_tcptls_cmp.png}
+        \caption{Comparação da retomada de sessão no QUIC (0-RTT) e no TCP com TLS. Fonte: adaptado de \citep{marx2020quic}.}
+        \label{fig:quic0rtt_vs_tcptls}
+\end{figure}
+
+Os dados 0-RTT não oferecem sigilo futuro (\textit{forward secrecy}) e estão sujeitos à reprodução de mensagens (\textit{replay}), conforme discutido na Seção~\ref{sec:quic_packet_protection}. Por isso, a aplicação deve limitar os dados antecipados a operações que possam ser repetidas com segurança \citep{rfc9001}. Esse recurso não foi avaliado nos experimentos deste trabalho.
+```
+
+```text
+\section{História do QUIC}
+
+O desenvolvimento do QUIC foi motivado por limitações da pilha TCP/TLS/HTTP, como o bloqueio da entrega de todos os fluxos multiplexados sobre uma conexão TCP quando ocorre a perda de um segmento (\textit{Head-of-Line Blocking}). Além disso, a implementação do TCP no núcleo do sistema operacional e a interferência de equipamentos intermediários dificultam a implantação de alterações no protocolo. O QUIC utiliza UDP e implementa suas funções de transporte no espaço de usuário, facilitando sua evolução \citep{marx2020quic}.
+
+A implementação original, denominada Google QUIC (GQUIC), foi desenvolvida pelo Google a partir de 2012 para melhorar o desempenho do tráfego HTTPS. Ela já integrava multiplexação de fluxos e mecanismos criptográficos, mas utilizava um protocolo de segurança próprio, o QUIC Crypto. Em 2016, o IETF criou o grupo de trabalho QUIC para padronizar o protocolo com base nessa experiência, incorporando alterações como a substituição do QUIC Crypto pelo TLS~1.3 e a separação entre o transporte e o mapeamento do HTTP \citep{marx2020quic}.
+
+Esse processo resultou no QUICv1, publicado em 2021 no RFC~9000 e adotado como referência neste trabalho \citep{rfc9000}. A versão padronizada integra o estabelecimento do transporte ao \textit{handshake} TLS~1.3 e fornece \textit{streams} independentes em uma mesma conexão \citep{rfc9001}. A Figura~\ref{fig:quic_stack} apresenta a pilha resultante, na qual o QUIC incorpora funções anteriormente distribuídas entre TCP e TLS e serve de transporte para protocolos de aplicação, como o HTTP/3.
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=0.7\textwidth]{fig/QUIC/quic_stack.png}
+    \caption{Pilha de protocolos utilizando QUIC. Fonte: adaptado de \citep{marx2020quic}.}
+    \label{fig:quic_stack}
+\end{figure}
+```
+
+## Modelos de Arquitetura de Rede — proposta de redação compacta
+
+Substituir o trecho entre o início da seção e a subseção “WebRTC como referência arquitetural”. A proposta mantém as três figuras, as citações e as distinções conceituais; a subseção de WebRTC permanece como está.
+
+```text
+\section{Modelos de Arquitetura de Rede}
+\label{sec:network_architecture_models}
+
+A arquitetura de rede define como os participantes interagem e quais responsabilidades assumem na prestação de um serviço, enquanto a topologia descreve suas interconexões físicas ou lógicas. Assim, uma mesma arquitetura pode operar sobre diferentes topologias. Entre os modelos mais utilizados estão cliente-servidor e P2P, cujas fronteiras não são rígidas: componentes centralizados e distribuídos podem coexistir e assumir relevâncias distintas conforme a etapa da comunicação \citep{RFC5694}.
+
+\subsection{Modelo Cliente-Servidor}
+
+No modelo cliente-servidor, o servidor disponibiliza serviços ou recursos, enquanto o cliente fornece uma interface para requisitá-los. No modelo de acesso remoto (\textit{remote access model}) descrito por \citep{Tanenbaum2007}, o cliente solicita operações, e o servidor as executa e retorna os resultados, conforme a Figura~\ref{fig:tannenbaum_client_server}.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.5\linewidth]{fig/NetworkModels/client_server.jpg}
+        \caption{Diagrama de alto nível do modelo de acesso remoto cliente-servidor, baseado em \citep{Tanenbaum2007}.}
+        \label{fig:tannenbaum_client_server}
+\end{figure}
+
+\subsection{Modelo Peer-to-Peer}
+\label{sec:p2p_model}
+
+Na arquitetura P2P, as responsabilidades são distribuídas entre os participantes, que podem atuar como provedores e consumidores de serviços, sem papéis fixos de cliente e servidor. Embora a literatura apresente diferentes definições, o RFC (\textit{Request for Comments}) 5694 \citep{RFC5694} caracteriza esses sistemas pelo compartilhamento de recursos para prover um serviço: os pares tanto fornecem quanto requisitam serviços e contribuem coletivamente para seu funcionamento. A associação histórica do P2P ao compartilhamento de conteúdo ilegal decorre de aplicações específicas, e não do modelo arquitetural.
+
+Autores como \citep{Milojicic2002} contrapõem a centralização do modelo cliente-servidor à descentralização do P2P, como ilustra a Figura~\ref{fig:centralized_vs_p2p}. Essa distinção admite componentes centralizados em sistemas P2P, conforme a discussão do RFC~5694 apresentada no início desta seção.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.6\linewidth]{fig/NetworkModels/centralized_vs_p2p.jpg}
+        \caption{Diagrama de alto nível da comparação entre os modelos P2P e centralizado, baseado em \citep{Milojicic2002}.}
+        \label{fig:centralized_vs_p2p}
+\end{figure}
+
+\subsection{Modelo Peer-to-Peer Híbrido}
+\label{sec:hybrid_peer_to_peer_model}
+
+Modelos P2P híbridos combinam comunicação entre pares com serviços centralizados de autenticação, descoberta, sinalização ou obtenção de metadados necessários à conexão \citep{Milojicic2002}. Na Figura~\ref{fig:hybrid_p2p}, o par A obtém informações de um servidor em (a) e as utiliza para estabelecer comunicação direta com B em (b).
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.6\linewidth]{fig/NetworkModels/hybrid_model.jpg}
+        \caption{Exemplo de modelo híbrido, baseado em \citep{Milojicic2002}.}
+        \label{fig:hybrid_p2p}
+\end{figure}
+
+O WebRTC, apresentado na Seção~\ref{sec:webrtc}, exemplifica essa organização: a sinalização e a coleta de candidatos ICE utilizam serviços auxiliares de sinalização, STUN e TURN, enquanto a troca de dados ocorre diretamente entre os pares sempre que possível.
+```
