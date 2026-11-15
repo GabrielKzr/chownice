@@ -58,6 +58,37 @@ A Figura~\ref{fig:quic_p2p_architecture} apresenta a arquitetura de comunicaçã
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % P2P NETWORKS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Modelos de Arquitetura de Rede}
+\label{sec:network_architecture_models}
+
+A arquitetura de rede define como os participantes interagem e quais responsabilidades assumem na prestação de um serviço, enquanto a topologia descreve suas interconexões físicas ou lógicas. Assim, uma mesma arquitetura pode operar sobre diferentes topologias. Entre os modelos mais utilizados estão cliente-servidor e P2P, cujas fronteiras não são rígidas: componentes centralizados e distribuídos podem coexistir e assumir relevâncias distintas conforme a etapa da comunicação \citep{RFC5694}.
+
+\subsection{Modelo Cliente-Servidor}
+
+No modelo cliente-servidor, o servidor disponibiliza serviços ou recursos, enquanto o cliente fornece uma interface para requisitá-los. No modelo de acesso remoto (\textit{remote access model}) descrito por \citep{Tanenbaum2007}, o cliente solicita operações, e o servidor as executa e retorna os resultados.
+
+\subsection{Modelo Peer-to-Peer}
+\label{sec:p2p_model}
+
+Na arquitetura P2P, as responsabilidades são distribuídas entre os participantes, que podem atuar como provedores e consumidores de serviços, sem papéis fixos de cliente e servidor. Embora a literatura apresente diferentes definições, o RFC (\textit{Request for Comments}) 5694 \citep{RFC5694} caracteriza esses sistemas pelo compartilhamento de recursos para prover um serviço: os pares tanto fornecem quanto requisitam serviços e contribuem coletivamente para seu funcionamento.
+
+\subsection{Modelo Peer-to-Peer Híbrido}
+\label{sec:hybrid_peer_to_peer_model}
+
+Modelos P2P híbridos combinam comunicação entre pares com serviços centralizados de autenticação, descoberta, sinalização ou obtenção de metadados necessários à conexão \citep{Milojicic2002}. Na Figura~\ref{fig:hybrid_p2p}, o par A obtém informações de um servidor em (a) e as utiliza para estabelecer comunicação direta com B em (b).
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.6\linewidth]{fig/NetworkModels/hybrid_model.jpg}
+        \caption{Exemplo de modelo híbrido, baseado em \citep{Milojicic2002}.}
+        \label{fig:hybrid_p2p}
+\end{figure}
+
+O WebRTC, apresentado na Seção~\ref{sec:webrtc}, exemplifica essa organização: a sinalização e a coleta de candidatos ICE utilizam serviços auxiliares de sinalização, STUN e TURN, enquanto a troca de dados ocorre diretamente entre os pares sempre que possível.
+
+\begin{comment}
+    
 \section{Modelos de Arquitetura de Rede}
 \label{sec:network_architecture_models}
 
@@ -107,6 +138,8 @@ A Figura~\ref{fig:hybrid_p2p} apresenta um exemplo desse modelo. Na Figura~\ref{
         \label{fig:hybrid_p2p}
 \end{figure}
 
+\end{comment}
+
 \subsection{WebRTC como referência arquitetural}
 \label{sec:webrtc}
 
@@ -143,6 +176,10 @@ Neste trabalho, o WebRTC serve como referência arquitetural para a organizaçã
 \section{Network Address Translator (NAT)}
 \label{sec:network_address_translator}
 
+O NAT é um mecanismo que traduz endereços IP entre diferentes domínios de endereçamento, como uma rede local (LAN, do inglês \textit{Local Area Network}) e uma rede de longa distância (WAN, do inglês \textit{Wide Area Network}), de forma transparente aos dispositivos finais. Conforme descrito no RFC~1631 \citep{RFC1631}, sua adoção foi motivada pelo esgotamento dos endereços IPv4 e pelos problemas de escalabilidade do roteamento, decorrentes do crescimento das tabelas de rotas e dos recursos necessários para mantê-las.
+
+\begin{comment}
+    
 O NAT é um mecanismo que traduz endereços IP entre diferentes domínios de endereçamento, como uma rede local (LAN, do inglês \textit{Local Area Network}) e uma rede de longa distância (WAN, do inglês \textit{Wide Area Network}). Essa tradução permite que a comunicação entre \textit{hosts} ocorra de forma transparente, sem que os dispositivos finais precisem conhecer ou gerenciar as alterações realizadas pelo dispositivo NAT. Conforme descrito em \citep{RFC1631}, o NAT surgiu principalmente como solução para dois problemas associados ao crescimento da Internet baseada no protocolo IPv4 (\textit{Internet Protocol version 4}): o esgotamento de endereços e a escalabilidade do sistema de roteamento.
 
 \begin{itemize}
@@ -152,6 +189,15 @@ O NAT é um mecanismo que traduz endereços IP entre diferentes domínios de end
 
 \end{itemize}
 
+\end{comment}
+
+\subsection{Características em Comum de NATs}
+
+Conforme o RFC~2663 \citep{RFC2663}, os mecanismos NAT apresentam como características a tradução de endereços e o encaminhamento transparentes aos dispositivos finais, além da tradução das informações contidas nas mensagens de erro ICMP (\textit{Internet Control Message Protocol}). Como essas mensagens incluem parte do pacote que originou o erro, os campos afetados pelo NAT precisam ser ajustados para que o host interno reconheça a comunicação correspondente.
+
+O NAT permite interligar redes que utilizam endereços privados à rede externa por meio de endereços públicos. As faixas privadas podem ser reutilizadas por redes distintas \citep{rfc1597, rfc1918}, gerando sobreposição: um mesmo endereço pode identificar dispositivos diferentes em redes distintas, impedindo sua utilização direta na comunicação entre essas redes \citep{RFC1631}. Essa limitação é central para a comunicação P2P e será discutida na Seção~\ref{sec:nat_problem_for_p2p_communication}.
+
+\begin{comment}
 \subsection{Características em Comum de NATs}
 
 Os diferentes tipos de NAT variam quanto ao modo de realizar as traduções. Entretanto, conforme definido em \citep{RFC2663}, um mecanismo NAT deve apresentar algumas características fundamentais, implementadas de forma completa ou parcial:
@@ -177,10 +223,20 @@ A redução do uso de endereços IP baseia-se no pressuposto de que nem todos os
 \end{figure}
 
 Entretanto, a reutilização das mesmas faixas de endereços privados em diferentes redes gera sobreposição de endereços: um mesmo endereço privado pode identificar dispositivos distintos em redes diferentes. Essa sobreposição impede que dois dispositivos situados em redes privadas distintas se comuniquem diretamente por meio de seus endereços privados \citep{RFC1631}. Esse problema é central para este trabalho, e a Seção~\ref{sec:nat_problem_for_p2p_communication} o aborda em detalhe.
+\end{comment}
 
 \subsection{Tipos de NAT}
 
 A literatura classifica os NATs segundo critérios distintos. Para fins de clareza, este trabalho organiza essas classificações em dois eixos: o primeiro relaciona-se ao que é traduzido, e o segundo, ao comportamento da operação de tradução. O primeiro eixo corresponde à nomenclatura do RFC 3022 \citep{RFC3022}, que divide o NAT tradicional (\textit{Traditional NAT}) em NAT básico (\textit{Basic NAT}) e NAPT, este também denominado NAT \textit{overload} ou PAT (\textit{Port Address Translation}). O segundo eixo corresponde à classificação em quatro tipos (\textit{Full Cone}, \textit{Restricted Cone}, \textit{Port-Restricted Cone} e \textit{Symmetric}), definida originalmente no RFC 3489 \citep{RFC3489}. Posteriormente, o RFC 5389 \citep{RFC5389} tornou obsoleto o RFC 3489 e abandonou essa classificação, pois muitos NATs reais não se enquadram de forma precisa em nenhum dos quatro tipos. Em seu lugar, os RFCs 4787 \citep{RFC4787} e 5780 \citep{RFC5780} adotam uma terminologia comportamental mais precisa.
+
+\subsubsection{Classificação de NATs por Tipo de Tradução}
+\label{sec:nat_classification_by_translation_type}
+
+O RFC~3022 \citep{RFC3022} distingue o \textit{Basic NAT}, que traduz apenas endereços IP mediante associações 1:1, do NAPT (\textit{Network Address Port Translation}), que traduz endereços e portas TCP/UDP, permitindo que múltiplos dispositivos compartilhem um endereço público e sejam diferenciados pelas portas atribuídas.
+
+Independentemente do que é traduzido, os mapeamentos podem ser estáticos ou dinâmicos. No modo estático, as associações entre identidades internas e externas são predefinidas e permanecem fixas; no dinâmico, são estabelecidas sob demanda, utilizando endereços ou portas disponíveis. Essa distinção aplica-se tanto ao \textit{Basic NAT} quanto ao NAPT, não sendo exclusiva da tradução apenas de endereços \citep{RFC3022}.
+
+\begin{comment}    
 
 \subsubsection{Classificação de NATs por Tipo de Tradução}
 \label{sec:nat_classification_by_translation_type}
@@ -205,8 +261,32 @@ Dessa forma, o RFC 3022 estabelece dois modos de vinculação (\textit{binding})
 
 Algumas fontes não normativas tratam o \textit{static} NAT e o \textit{dynamic} NAT como características exclusivas do \textit{Basic NAT}; entretanto, o RFC 3022 não estabelece essa restrição.
 
+\end{comment}
+
 \subsubsection{Classificação de NATs por Comportamento de Tradução}
 \label{sec:nat_classification_by_translation_behavior}
+
+O RFC~3489 \citep{RFC3489} classifica os NATs em quatro tipos, ainda utilizados na literatura sobre comunicação P2P. Essa classificação foi abandonada pelo RFC~5389 \citep{RFC5389}, pois muitos dispositivos reais não se enquadram precisamente nessas categorias. Por isso, este trabalho também apresenta a terminologia comportamental dos RFCs~4787 e~5780 \citep{RFC4787, RFC5780}, que distingue os comportamentos de mapeamento e de filtragem.
+
+\paragraph{Classificação Clássica}
+
+Na classificação clássica, os tipos \textit{Full Cone}, \textit{Restricted Cone} e \textit{Port-Restricted Cone} reutilizam o mesmo mapeamento externo para uma combinação de endereço e porta internos, independentemente do destino. Eles diferem quanto ao tráfego externo permitido através desse mapeamento \citep{RFC3489}:
+
+\begin{itemize}
+    \item \textbf{\textit{Full Cone}:} aceita pacotes de qualquer origem externa;
+    \item \textbf{\textit{Restricted Cone}:} aceita pacotes apenas de endereços IP previamente contatados pelo dispositivo interno;
+    \item \textbf{\textit{Port-Restricted Cone}:} aceita pacotes apenas dos pares de endereço IP e porta previamente contatados.
+\end{itemize}
+
+No \textit{Symmetric NAT}, o mapeamento também depende do endereço e da porta de destino: uma mesma origem interna pode receber diferentes mapeamentos externos ao contatar destinos distintos. Apenas o destino contatado pode enviar pacotes de retorno pelo mapeamento correspondente \citep{RFC3489}.
+
+O termo \textit{Asymmetric NAT} é utilizado informalmente para designar os NATs não simétricos, agrupando os três tipos \textit{Cone}, sem constituir uma categoria padronizada pelos RFCs.
+
+\begin{comment}
+    
+\subsubsection{Classificação de NATs por Comportamento de Tradução}
+\label{sec:nat_classification_by_translation_behavior}
+
 
 Os documentos de referência descrevem a classificação comportamental de NATs com diferentes níveis de granularidade. Esta seção apresenta, primeiro, a classificação clássica do RFC 3489, amplamente utilizada na literatura sobre \textit{hole punching} e comunicação P2P, e, em seguida, a classificação comportamental mais recente e detalhada do RFC 4787.
 
@@ -227,6 +307,34 @@ Com o objetivo de padronizar a nomenclatura, o RFC 3489 propõe uma classificaç
 
 Embora não exista uma definição formal padronizada, a literatura e documentações técnicas \hl{[citar exemplo]} empregam com frequência o termo \textit{Asymmetric NAT} (ou \textit{permissive NAT}) para designar, de forma genérica, todos os tipos de NAT que não são \textit{Symmetric}, ou seja, os três tipos de \textit{Cone} NAT. Este trabalho entende que essa assimetria decorre do fato de o mapeamento, conceito formalizado na classificação comportamental apresentada a seguir, depender apenas de um lado da comunicação (a origem). No \textit{Symmetric} NAT, por outro lado, o mapeamento depende do conjunto completo de endereço e porta de origem e de destino e, portanto, associa-se a um fluxo de comunicação específico: cada fluxo distinto gera um mapeamento diferente.
 
+\end{comment}
+
+\paragraph{Classificação Comportamental}
+
+O RFC~4787 \citep{RFC4787} distingue dois comportamentos independentes: o mapeamento, que determina como o NAT atribui e reutiliza o par de endereço IP e porta externos associado a uma origem interna, e a filtragem, que determina quais origens externas podem enviar pacotes através de um mapeamento existente.
+
+\subparagraph{Comportamento de Mapeamento}
+
+Para uma mesma origem interna, identificada pelo par de endereço IP e porta, o NAT pode apresentar os seguintes comportamentos:
+
+\begin{itemize}
+    \item \textbf{\textit{Endpoint-Independent Mapping} (EIM):} reutiliza o mesmo mapeamento externo independentemente do destino;
+    \item \textbf{\textit{Address-Dependent Mapping} (ADM):} reutiliza o mapeamento para destinos com o mesmo endereço IP, independentemente da porta;
+    \item \textbf{\textit{Address and Port-Dependent Mapping} (APDM):} reutiliza o mapeamento apenas para o mesmo par de endereço IP e porta de destino.
+\end{itemize}
+
+\subparagraph{Comportamento de Filtragem}
+
+Para pacotes destinados a um mapeamento existente, o NAT pode aplicar as seguintes regras de aceitação:
+
+\begin{itemize}
+    \item \textbf{\textit{Endpoint-Independent Filtering} (EIF):} aceita pacotes de qualquer origem externa;
+    \item \textbf{\textit{Address-Dependent Filtering} (ADF):} aceita pacotes apenas de endereços IP previamente contatados pela origem interna, independentemente da porta externa;
+    \item \textbf{\textit{Address and Port-Dependent Filtering} (APDF):} aceita pacotes apenas dos pares de endereço IP e porta previamente contatados pela origem interna.
+\end{itemize}
+
+\begin{comment}
+    
 \paragraph{Classificação Comportamental}
 
 Para compreender as descrições dos documentos mais recentes, é necessário entender o funcionamento de um NAPT. Conforme o RFC 4787 \citep{RFC4787}, ao receber o primeiro pacote de uma nova conexão ou de um novo fluxo, o NAPT cria em sua tabela interna (tabela NAT) uma entrada que associa o endereço e a porta internos de origem a um endereço e uma porta externos. O comportamento do NAT na criação e na reutilização desse mapeamento, bem como na filtragem de pacotes externos, determina a permissividade da tradução.
@@ -248,7 +356,19 @@ O RFC 4787 descreve esse comportamento a partir de dois eixos ortogonais: o comp
     \item \textbf{\textit{Address Dependent Filtering} (ADF):} O NAT encaminha ao \textit{host} interno apenas os pacotes que, destinados ao endereço e à porta públicos mapeados na tabela NAT, tenham origem em um endereço externo para o qual o \textit{host} interno já enviou pacotes, independentemente da porta externa de origem.
     \item \textbf{\textit{Address and Port Dependent Filtering} (APDF):} O NAT encaminha ao \textit{host} interno apenas os pacotes que, destinados ao endereço e à porta públicos mapeados na tabela NAT, tenham origem exatamente no endereço e na porta externos para os quais o \textit{host} interno já enviou pacotes.
 \end{itemize}
+\end{comment}
 
+\subsubsection{Problema do NAT para comunicações P2P}
+\label{sec:nat_problem_for_p2p_communication}
+
+A sobreposição de endereços privados e sua ausência de roteabilidade global dificultam a comunicação entre dispositivos de redes distintas \citep{RFC1631, ford2005peer}. Enquanto o modelo cliente-servidor permite que dispositivos internos iniciem conexões com servidores públicos conhecidos, na comunicação P2P ambos os extremos podem estar atrás de NAT, sem conhecer previamente seus endereços externos. Além disso, a ocultação de endereços internos não constitui, por si só, uma garantia de privacidade ou segurança \citep{rfc5128, RFC4941}.
+
+A adoção do IPv6 não elimina todas essas dificuldades. Existem mecanismos de tradução entre IPv4 e IPv6, como NAT64 e 464XLAT \citep{rfc6146, rfc6877}, e entre domínios IPv6, como NPTv6 \citep{rfc6296}. Mesmo na ausência de tradução, a filtragem por \textit{firewalls} também restringir a comunicação P2P \citep{rfc5128}.
+
+As técnicas de travessia de NAT procuram viabilizar essa comunicação. Em 380 relatos abrangendo NATs de 68 fabricantes, Ford et al. \citep{ford2005peer} observaram suporte a \textit{hole punching} em 82\% dos casos testados com UDP e 64\% com TCP. O RFC~5128 \citep{rfc5128} consolidou essas técnicas, discutidas nas seções seguintes. Na arquitetura proposta, elas permitem estabelecer a comunicação externa entre gateways situados em redes privadas distintas, sem exigir um endereço público diretamente atribuído a cada host.
+
+\begin{comment}
+    
 \subsubsection{Problema do NAT para comunicações P2P}
 \label{sec:nat_problem_for_p2p_communication}
 
@@ -266,6 +386,8 @@ Diante desses problemas, surgiram métodos de travessia de NAT para viabilizar a
 
 Na arquitetura proposta, esse problema afeta os gateways, que podem estar em redes privadas distintas e precisam estabelecer a comunicação externa sem depender de endereçamento público diretamente atribuído a cada host.
 
+\end{comment}
+
 \section{NAT Traversal}
 \label{sec:nat_traversal}
 
@@ -275,6 +397,18 @@ Novas técnicas surgiram desde então, e este trabalho aborda algumas delas, com
 
 Por conveniência de notação, esta seção emprega o termo ``endereço IP público'', salvo indicação contrária, para designar o par completo de endereço IP e porta públicos mapeados por um NAT, e não apenas o endereço IP isoladamente. Essa simplificação justifica-se porque, no NAPT (Seção~\ref{sec:nat_classification_by_translation_type}), a combinação de endereço e porta identifica de forma única um mapeamento de tradução; assim, a porta é um componente indissociável do endereço público de um \textit{peer} para fins de comunicação P2P.
 
+\subsection{Relaying}
+
+O \textit{relaying}, ou retransmissão, utiliza um servidor intermediário acessível aos dois participantes para encaminhar os dados entre eles, conforme a Figura~\ref{fig:relaying_server}. Essa abordagem permite contornar as restrições dos NATs desde que ambos consigam se comunicar com o servidor, mas acrescenta custos de infraestrutura, processamento e largura de banda, pois todo o tráfego passa por esse intermediário \citep{rfc5128}. O protocolo TURN padroniza esse mecanismo e é apresentado na Seção~\ref{sec:turn_server}.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.5\linewidth]{fig/NAT_Traversal/relaying.png}
+        \caption{Travessia de NAT por \textit{relaying}, conforme \citep{ford2005peer}.}
+        \label{fig:relaying_server}
+\end{figure}
+
+\begin{comment}
 \subsection{Relaying}
 
 O \textit{relaying}, ou retransmissão, é, segundo o RFC 5128 \citep{rfc5128}, a técnica mais confiável e, ao mesmo tempo, a menos eficiente para a comunicação P2P. Em vez de estabelecer uma comunicação direta entre os dois \textit{peers}, essa técnica utiliza um servidor intermediário (\textit{Rendezvous Server}) para encaminhar os pacotes. Esse servidor realiza o registro, a descoberta e o encaminhamento de pacotes entre os \textit{peers}. Para isso, o servidor precisa possuir um endereço IP público e globalmente roteável, alcançável por ambos os \textit{peers}; do contrário, o NAT impediria que ao menos um deles o acessasse.
@@ -288,9 +422,15 @@ A vantagem desse modelo é que a comunicação sempre funciona, independentement
         \label{fig:relaying_server}
 \end{figure}
 
+\end{comment}
+
 \subsection{Connection Reversal}
 \label{sec:connection_reversal}
 
+O \textit{connection reversal} aplica-se quando apenas um dos participantes está atrás de NAT e o outro possui um endereço público acessível. Se a tentativa de conexão iniciada pelo participante externo falhar, ele solicita, por meio de um servidor auxiliar (\textit{rendezvous point}), que o participante interno inicie a conexão no sentido inverso. Assim, a conexão parte da rede privada, criando o mapeamento necessário no NAT e permitindo o retorno dos pacotes do participante público \citep{rfc5128, ford2005peer}.
+
+\begin{comment}
+    
 O \textit{connection reversal} é uma técnica voltada para o caso em que apenas um dos \textit{peers} está atrás de um NAT (cliente A), enquanto o outro possui um endereço IP público (cliente B). O objetivo desse método é fazer com que o cliente atrás do NAT inicie a conexão com o cliente que possui endereço público, o que inverte o sentido original da tentativa de conexão. Para isso, a técnica utiliza um servidor intermediário (\textit{rendezvous point}), cuja função se limita ao registro dos \textit{peers} e à descoberta de seus respectivos endereços IP público e privado.
 
 O processo ocorre da seguinte forma: o cliente A estabelece uma conexão com o servidor S, e o cliente B, ao se registrar, obtém por meio do servidor os endereços IP público e privado do cliente A. Em seguida, o cliente B tenta iniciar uma comunicação direta com o cliente A, utilizando ambos os endereços obtidos. Caso essa tentativa falhe, o cliente B solicita ao servidor S que encaminhe um pedido de conexão ao cliente A pela conexão já ativa entre A e o servidor. Ao receber esse pedido, o cliente A inicia uma nova conexão diretamente com o cliente B. Como o NAT permite conexões iniciadas a partir da rede interna, essa conexão será bem-sucedida desde que não haja filtragem de conexões no lado do cliente B. A Figura~\ref{fig:connection_reversal} ilustra esse processo.
@@ -304,6 +444,7 @@ O processo ocorre da seguinte forma: o cliente A estabelece uma conexão com o s
 
 A etapa de reversão, isto é, o encaminhamento do pedido de conexão de B para A por meio do servidor S, seguido do início da conexão por A, só ocorre caso a tentativa de conexão direta de B falhe. Se o NAT de A empregasse EIF (Seção~\ref{sec:nat_classification_by_translation_behavior}), essa tentativa direta teria sucesso para o endereço público do cliente A, e a etapa de reversão seria desnecessária.
 
+\end{comment}
 \subsection{UDP Hole Punching}
 \label{sec:udp_hole_punching}
 
@@ -322,6 +463,20 @@ Diante disso, o cliente A tenta iniciar uma sessão com o cliente B por intermé
 
 As técnicas de \textit{hole punching} descritas nesta seção dependem de NATs EIM; caso contrário, os clientes não conseguiriam descobrir o endereço público X:x do cliente de destino. Em NATs com mapeamento dependente do destino (EDM, do inglês \textit{Endpoint-Dependent Mapping}), isto é, ADM ou APDM, o endereço X:x seria diferente para cada destino, de modo que o servidor S não conseguiria fornecer aos clientes A e B os endereços públicos que cada um utilizaria na comunicação com o outro.
 
+\subsubsection{UDP Hole Punching Sob o Mesmo NAT}
+
+Quando dois \textit{peers} estão na mesma rede privada, mas desconhecem essa condição, eles podem tentar comunicar-se pelos endereços externos obtidos por meio do servidor auxiliar. Esse caminho exige suporte a \textit{hairpinning}, isto é, a capacidade do NAT de encaminhar ao participante interno os pacotes destinados ao seu endereço e à sua porta externos \citep{ford2005peer}.
+
+Como alternativa, os participantes podem trocar tanto seus endereços locais quanto os externos e testar ambos, conforme a Figura~\ref{fig:udp_hole_punching_same_nat}. Se os endereços locais forem acessíveis entre si, a comunicação ocorre diretamente pela rede privada, sem depender de \textit{hairpinning} \citep{ford2005peer}.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=1.0\linewidth]{fig/NAT_Traversal/udp_hole_punching_same_nat.png}
+        \caption{Travessia de NAT por \textit{hole punching} sobre UDP atrás de um NAT compartilhado, conforme \citep{ford2005peer}.}
+        \label{fig:udp_hole_punching_same_nat}
+\end{figure}
+
+\begin{comment}
 \subsubsection{UDP Hole Punching Sob o Mesmo NAT}
 
 O \textit{hole punching} atrás do mesmo NAT corresponde ao cenário de topologia em que múltiplos \textit{peers} estão em uma mesma rede privada, sem necessariamente ter conhecimento dessa condição. Nesse cenário, duas técnicas permitem estabelecer a comunicação. Considere o cenário ilustrado na Figura~\ref{fig:udp_hole_punching_same_nat}.
@@ -349,6 +504,7 @@ A segunda técnica, que independe do suporte a \textit{hairpinning}, aplica-se q
         \label{fig:udp_hole_punching_same_nat}
 \end{figure}
 
+\end{comment}
 \subsubsection{UDP Hole Punching Sob Múltiplos NATs}
 
 Um cenário especialmente relevante na prática, dada a disseminação do \textit{Carrier-Grade NAT} (CGNAT) entre provedores de acesso à Internet (ISP, do inglês \textit{Internet Service Provider}), é o de topologias com múltiplos NATs, descrito no RFC 5128 \citep{rfc5128} e ilustrado na Figura~\ref{fig:udp_hole_punching_multiple_nat}.
@@ -367,6 +523,19 @@ Portanto, segundo o RFC 5128, os clientes não têm outra opção senão utiliza
 \subsubsection{UDP Hole Punching para EDM NAT}
 \label{sec:udp_hole_punching_edm}
 
+Em NATs com mapeamento dependente do destino (EDM, do inglês \textit{Endpoint-Dependent Mapping}), o endereço e a porta externos observados pelo servidor auxiliar podem diferir daqueles utilizados na comunicação com o outro \textit{peer}. Por isso, o procedimento baseado apenas na troca desses endereços não garante a conectividade direta \citep{rfc5128}.
+
+Uma alternativa é a predição de portas (\textit{port prediction}), também conhecida como técnica ``N+1''. Quando o NAT atribui portas sequencialmente, os participantes podem utilizar as portas observadas pelo servidor para prever os próximos mapeamentos externos \citep{rfc5128}.
+
+Como nas seções anteriores, os clientes A e B acessam o servidor S e obtêm seus endereços públicos A:a e B:b. Em seguida, o cliente A envia mensagens para a porta prevista de B, B:b+1, e o cliente B envia mensagens para a porta prevista de A, A:a+1. Se ambos os clientes preverem corretamente a próxima porta que o NAT do outro \textit{peer} mapeará, os dois estabelecem a comunicação.
+
+Essa técnica é frágil: a porta prevista pode estar ocupada, outro fluxo pode consumir a próxima associação ou o NAT pode utilizar uma política de alocação não sequencial. Múltiplos níveis de NAT dificultam a previsão, e a identificação prévia desse comportamento acrescenta complexidade ao estabelecimento. A predição também se aplica ao \textit{hole punching} sobre TCP (Seção~\ref{sec:tcp_hole_punching}), mas com dificuldades adicionais de sincronização \citep{rfc5128}.
+
+\begin{comment}
+    
+\subsubsection{UDP Hole Punching para EDM NAT}
+\label{sec:udp_hole_punching_edm}
+
 Algumas tentativas de comunicação P2P deparam-se com NATs mais restritivos, que não implementam EIM, isto é, NATs EDM (Seção~\ref{sec:nat_classification_by_translation_behavior}). Como, nesses NATs, o mapeamento público depende do destino, o servidor S não consegue informar aos \textit{peers} os endereços públicos de seus destinos.
 
 Entretanto, conforme o RFC 5128, é possível analisar o comportamento do NAT na escolha da porta pública. Na maior parte dos casos, o NAT atribui e mapeia portas de forma sequencial, o que permite prever a próxima porta a ser alocada. Por isso, essa técnica de predição de portas (\textit{port prediction}) é frequentemente denominada ``N+1''.
@@ -379,6 +548,17 @@ Por fim, para combinar essa técnica com as demais, seria necessário identifica
 
 A predição de portas também se aplica ao \textit{hole punching} sobre TCP (Seção~\ref{sec:tcp_hole_punching}). Nesse caso, entretanto, a técnica é ainda mais frágil e sensível a \textit{timing} do que no UDP, o que torna a solução mais instável.
 
+\end{comment}
+
+\subsection{TCP Hole Punching}
+\label{sec:tcp_hole_punching}
+
+O \textit{hole punching} sobre TCP pode utilizar a abertura simultânea (\textit{TCP simultaneous open}), na qual ambos os \textit{peers} enviam segmentos \texttt{SYN} ao endereço e à porta externos do outro. Esses envios criam os mapeamentos nos respectivos NATs e, quando os dispositivos permitem a passagem dos segmentos recebidos, os dois extremos estabelecem uma única conexão TCP \citep{ford2005peer, rfc5128}.
+
+O sucesso depende da sincronização das tentativas e do tratamento de conexões pelos NATs e pelas \textit{sockets} dos participantes. Um segmento \texttt{SYN} que chegue antes da criação do mapeamento correspondente pode ser descartado ou provocar uma resposta \texttt{RST}, prejudicando o estabelecimento. Assim, o suporte à abertura simultânea varia entre implementações, exigindo cuidados adicionais em relação ao procedimento sobre UDP \citep{ford2005peer, rfc5128}.
+
+\begin{comment}
+    
 \subsection{TCP Hole Punching}
 \label{sec:tcp_hole_punching}
 
@@ -390,13 +570,34 @@ Para contornar essa limitação, a técnica emprega o \textit{TCP simultaneous o
 
 Apesar dessas limitações, Ford et al. \citep{ford2005peer} e o RFC 5128 \citep{rfc5128} afirmam que a maior parte dos NATs permite o \textit{hole punching} sobre TCP por meio do \textit{TCP simultaneous open}, com sucesso em mais de 50\% dos casos. Ford et al. relatam, a partir de testes em uma ampla variedade de NATs, uma taxa de sucesso de 64\%. O RFC 5128 destaca ainda que outros trabalhos, com técnicas mais sofisticadas do que as de Ford et al., obtiveram suporte de até 88\% para o \textit{hole punching} sobre TCP.
 
+\end{comment}
+
 \section{Interactive Connectivity Establishment (ICE)}
 \label{sec:ice}
 
 O protocolo ICE \citep{rfc8445} realiza a travessia de NAT em comunicações baseadas em UDP. O ICE utiliza o protocolo STUN e, como alternativa (\textit{fallback}), sua extensão TURN para permitir a comunicação entre dois \textit{peers}, cada um atrás de um NAT, por meio da técnica de \textit{hole punching} ou através de servidores \textit{relay}. Antes de descrever o funcionamento do ICE, as subseções a seguir apresentam os mecanismos dos protocolos STUN e TURN.
 
+
 \subsection{Servidor STUN}
 \label{sec:stun_server}
+
+O STUN é uma ferramenta utilizada por outros protocolos para a travessia de NAT. Ele permite descobrir o endereço IP e a porta externos atribuídos a um dispositivo, verificar a conectividade entre \textit{endpoints} e manter os mapeamentos ativos por meio de mensagens de \textit{keep-alive}; isoladamente, não constitui uma solução completa de travessia \citep{rfc8489}.
+
+As mensagens dividem-se em quatro classes: \textit{request}, que exige resposta; \textit{indication}, que não exige resposta; e respostas de sucesso ou erro. O RFC~8489 \citep{rfc8489} define o método \texttt{Binding}, cuja resposta informa o endereço IP e a porta de origem observados pelo servidor, conforme a Figura~\ref{fig:stun_time_diagram}. Extensões como o TURN definem métodos adicionais.
+
+O STUN pode operar sobre UDP, TCP, DTLS sobre UDP ou TLS sobre TCP. Sua autenticação utiliza credenciais de curta ou longa duração para verificar a integridade e a autenticidade das mensagens, mas não cifra seu conteúdo. Quando empregados, TLS e DTLS acrescentam proteção criptográfica ao transporte das mensagens \citep{rfc8489}.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.8\linewidth]{fig/ICE/stun_time_diagram.png}
+        \caption{Diagrama de tempo do STUN, conforme \citep{bordane2024stun}.}
+        \label{fig:stun_time_diagram}
+\end{figure}
+
+\begin{comment}
+\subsection{Servidor STUN}
+\label{sec:stun_server}
+    
 
 O STUN é um protocolo que outros protocolos utilizam para realizar a travessia de NAT; por si só, ele não constitui uma técnica de travessia, mas uma ferramenta. O STUN fornece o endereço IP e a porta que um NAT alocou para um dispositivo, permite verificar a conectividade entre \textit{endpoints} e atua como mecanismo de \textit{keep-alive}, que mantém ativos os mapeamentos da tabela NAT.
 
@@ -421,6 +622,7 @@ A Figura~\ref{fig:stun_time_diagram} apresenta o diagrama de tempo do processame
         \caption{Diagrama de tempo do STUN, conforme \citep{bordane2024stun}.}
         \label{fig:stun_time_diagram}
 \end{figure}
+\end{comment}
 
 \begin{comment}
 CARA IMPORTANTE LEMBRAR O SEGUINTE
@@ -433,12 +635,19 @@ Também importante lembrar onde isso se sobrepõe com aplicações UNSAF do RFC
 \subsection{Servidor TURN}
 \label{sec:turn_server}
 
+O TURN é uma extensão do STUN que permite a comunicação entre participantes quando não há um caminho direto disponível, utilizando um servidor intermediário para retransmitir os dados, conforme a organização apresentada na Figura~\ref{fig:relaying_server}. Esse servidor fornece um caminho alternativo às técnicas de \textit{hole punching} e pode ser utilizado pelo ICE na seleção da conectividade \citep{rfc8656}.
+
+O RFC~8656 \citep{rfc8656} distingue o endereço utilizado pelo cliente para acessar o serviço TURN (\textit{TURN server transport address}) daquele alocado pelo servidor para receber e retransmitir dados em seu nome (\textit{relayed transport address}). O endereço externo do cliente, observado pelo servidor após a tradução do NAT, é denominado \textit{server-reflexive transport address}, enquanto o endereço do participante remoto, visto pelo servidor, é denominado \textit{peer transport address}. Cada endereço de transporte corresponde a um par de endereço IP e porta.
+
+\begin{comment}
+    
+
 O TURN é um protocolo desenvolvido para viabilizar a comunicação nos casos em que dois \textit{peers} atrás de NAT não conseguem se comunicar diretamente. Esses casos, descritos nas Seções~\ref{sec:nat_classification_by_translation_behavior} e~\ref{sec:udp_hole_punching}, decorrem das limitações e dos bloqueios de NATs que não implementam EIM. Por isso, diversos trabalhos, como \citep{liao2020turnproxy}, descrevem o TURN como uma solução para os casos de falha do \textit{hole punching}.
 
 O TURN resolve esses cenários por meio de um ponto intermediário, denominado \textit{relay} ou servidor TURN (\textit{TURN server}), que permite que \textit{peers} (\textit{TURN clients}) se comuniquem por meio de um terceiro \textit{host}. O servidor TURN também pode ocultar dos demais \textit{peers} os endereços IP e as portas públicos mapeados; nesse caso, o servidor atua como um \textit{proxy} especializado.
 
 A Figura~\ref{fig:turn_topology} ilustra a topologia entre clientes e servidor TURN. Os clientes podem estar ou não atrás de um NAT, e cada um pode ou não atuar como \textit{TURN client}. O RFC 8656 \citep{rfc8656} define, entre outros, os seguintes endereços de transporte: o endereço do cliente no lado externo do NAT, visto pelo servidor, denomina-se \textit{server-reflexive transport address}; o endereço do servidor utilizado pelos clientes para enviar mensagens TURN denomina-se \textit{TURN server transport address}; e o endereço do \textit{peer}, visto pelo servidor, denomina-se \textit{peer transport address}.
-
+    
 \begin{figure}[!ht]
         \centering
         \includegraphics[width=0.4\linewidth]{fig/ICE/turn_topology.png}
@@ -447,6 +656,12 @@ A Figura~\ref{fig:turn_topology} ilustra a topologia entre clientes e servidor T
 \end{figure}
 
 O TURN foi projetado para operar como parte do protocolo ICE. Além disso, o TURN é uma extensão do protocolo STUN, e suas mensagens utilizam o formato das mensagens STUN.
+\end{comment}
+
+A comunicação entre o cliente e o servidor TURN pode utilizar UDP, TCP, TLS sobre TCP ou DTLS sobre UDP, enquanto a retransmissão entre o servidor e o participante remoto utiliza UDP, conforme o RFC~8656 \citep{rfc8656}. No envio pelo cliente, o servidor remove o encapsulamento TURN e encaminha os dados ao destino; no sentido inverso, encapsula os datagramas recebidos para entregá-los ao cliente.
+
+\begin{comment}
+    
 
 Durante a comunicação, as mensagens enviadas de um cliente TURN ao servidor trafegam sobre um protocolo de transporte previamente escolhido. Ao receber um pacote a ser retransmitido, o servidor o desencapsula e o envia ao \textit{peer} de destino em um datagrama UDP. No sentido contrário, ao receber um datagrama UDP do \textit{peer}, o servidor TURN encapsula a mensagem em uma mensagem TURN e a encaminha ao cliente. A Tabela~\ref{tab:turn_transports} resume essa relação.
 
@@ -470,29 +685,33 @@ Durante a comunicação, as mensagens enviadas de um cliente TURN ao servidor tr
     \label{tab:turn_transports}
 \end{table}
 
+\end{comment}
+
 Os clientes solicitam alocações ao servidor TURN por meio de uma requisição \texttt{Allocate}. O servidor autentica essas requisições com o mecanismo de autenticação do STUN e, em resposta, reserva um endereço próprio, denominado \textit{relayed transport address}. Esse endereço passa a ser o ponto de contato pelo qual os \textit{peers} enviam tráfego ao cliente, e o servidor encaminha ao cliente os dados recebidos nesse endereço. A Figura~\ref{fig:turn_time_diagram} apresenta o diagrama de tempo do processo de alocação em um servidor TURN.
 
 \begin{figure}[!ht]
         \centering
-        \includegraphics[width=0.8\linewidth]{fig/ICE/turn_time_diagram.png}
+        \includegraphics[width=0.7\linewidth]{fig/ICE/turn_time_diagram.png}
         \caption{Diagrama de tempo do TURN, conforme \citep{microsoft2022msturnexamples}.}
         \label{fig:turn_time_diagram}
 \end{figure}
 
 Para garantir a segurança e impedir o uso do TURN para contornar (\textit{bypass}) \textit{firewalls}, o servidor implementa o conceito de permissões: antes de aceitar tráfego de um \textit{peer} específico endereçado ao \textit{relayed transport address} do cliente, o servidor exige que o cliente tenha instalado explicitamente uma permissão para esse \textit{peer}. Esse conceito é análogo ao comportamento de filtragem dos NATs (Seção~\ref{sec:nat_classification_by_translation_behavior}). Cada permissão funciona como uma concessão temporária (\textit{lease}) e expira após 5 minutos caso o cliente não a renove.
 
-O servidor TURN oferece dois mecanismos de envio e retransmissão de dados:
+O TURN oferece dois mecanismos para transportar dados entre cliente e servidor. As mensagens \textit{Send Indication} e \textit{Data Indication} utilizam o formato STUN e transportam dados, respectivamente, do cliente ao servidor e do servidor ao cliente. Como alternativa, o cliente pode enviar uma requisição \texttt{ChannelBind}, associando um número de canal ao endereço de transporte do participante remoto \citep{rfc8656}.
 
-\begin{itemize}
-    \item \textbf{\textit{Indications}:} As \textit{indications} são mensagens no formato STUN, conforme a Seção~\ref{sec:stun_server}, e dividem-se em dois tipos: \textit{Send Indication} e \textit{Data Indication}. A \textit{Send Indication} transporta dados do cliente ao servidor, que os retransmite ao \textit{peer}; a \textit{Data Indication} transporta ao cliente os dados que o servidor recebeu do \textit{peer};
-    \item \textbf{\textit{Channels}:} Os canais utilizam um formato simplificado de mensagem, denominado \textit{ChannelData}, que dispensa o cabeçalho STUN e reduz o consumo de banda. Para criar um canal, o cliente envia uma requisição \texttt{ChannelBind} que associa um número de canal de 2 bytes, escolhido pelo próprio cliente, a um \textit{peer} específico; esse número, somado a um campo de tamanho de 2 bytes, forma o cabeçalho de 4 bytes de cada mensagem \textit{ChannelData}. O canal opera nos dois sentidos (do cliente ao \textit{peer} e do \textit{peer} ao cliente) e permanece ativo por 10 minutos caso o cliente não o renove, o dobro da duração de uma permissão, o que garante que o canal não expire antes dela.
-\end{itemize}
+Após essa associação, ambos os sentidos podem utilizar mensagens \textit{ChannelData}, cujo cabeçalho de quatro bytes contém o número do canal e o tamanho dos dados, reduzindo a sobrecarga em relação às \textit{indications}. A associação tem validade de dez minutos e precisa ser renovada para continuar em uso \citep{rfc8656}.
 
 \subsection{Protocolo ICE}
 
+O ICE, definido no RFC~8445 \citep{rfc8445}, estabelece a conectividade entre dois \textit{peers} por meio da coleta e da verificação de endereços candidatos, utilizando STUN e TURN para descobrir caminhos diretos ou retransmitidos. Os candidatos incluem endereços das interfaces locais e aqueles obtidos pelos serviços auxiliares, conforme a Figura~\ref{fig:ice_candidates}. Na arquitetura proposta, cada \textit{gateway} executa um agente ICE, cujos candidatos representam os caminhos de comunicação com o \textit{gateway} remoto.
+
+\begin{comment}
+    
 O protocolo ICE, definido no RFC 8445 \citep{rfc8445}, combina as vantagens das técnicas de travessia de NAT apresentadas anteriormente, de modo a reduzir a complexidade e maximizar o uso de comunicações P2P em diferentes topologias. O ICE opera nativamente sobre fluxos de dados (\textit{streams}) em UDP, utiliza os protocolos STUN e TURN na seleção de endereços e suporta \textit{hosts} com um ou múltiplos endereços IP (\textit{multihomed}).
 
 O ICE baseia-se na coleta de endereços candidatos para a comunicação entre os dois \textit{peers}; cada combinação de candidatos representa uma possível tentativa de comunicação. Esses candidatos incluem o endereço local do \textit{host} (ou \textit{gateway}) e os endereços obtidos por meio dos protocolos auxiliares do ICE (STUN e TURN). A Figura~\ref{fig:ice_candidates} ilustra esses candidatos. Cada \textit{gateway} executa seu próprio agente ICE. Os candidatos obtidos e os pares selecionados referem-se aos caminhos de comunicação desses \textit{gateways}, e não aos endereços dos sensores ou atuadores associados a eles.
+\end{comment}
 
 \begin{figure}[!ht]
         \centering
@@ -501,6 +720,19 @@ O ICE baseia-se na coleta de endereços candidatos para a comunicação entre os
         \label{fig:ice_candidates}
 \end{figure}
 
+Os candidatos utilizados pelo ICE são classificados em quatro tipos:
+
+\begin{itemize}
+    \item \textbf{\textit{Host}:} endereço de uma interface local do participante;
+    \item \textbf{\textit{Server-reflexive}:} endereço e porta externos observados por um servidor STUN;
+    \item \textbf{\textit{Relayed}:} endereço e porta alocados por um servidor TURN para retransmissão;
+    \item \textbf{\textit{Peer-reflexive}:} endereço e porta descobertos durante as verificações de conectividade, a partir do endereço de origem observado pelo outro \textit{peer}.
+\end{itemize}
+
+Cada candidato possui uma \textit{base}, que identifica o endereço de transporte a partir do qual os dados são enviados. Para candidatos \textit{host}, \textit{server-reflexive} e \textit{peer-reflexive}, ela corresponde ao endereço local associado; para candidatos \textit{relayed}, corresponde ao próprio endereço alocado no servidor TURN \citep{rfc8445}.
+
+\begin{comment}
+    
 Os candidatos apresentados na figura são:
 
 \begin{itemize}
@@ -512,7 +744,11 @@ Os candidatos apresentados na figura são:
 Há ainda o \textit{Peer Reflexive Address}, que corresponde ao endereço do \textit{host} observado pelo outro \textit{peer} e que pode diferir dos endereços observados pelos servidores STUN e TURN. O ICE descobre esse endereço durante as verificações de conectividade (\textit{connectivity checks}) e o adiciona à lista de candidatos. Em resumo, o ICE busca descobrir o maior número possível de endereços capazes de representar um \textit{peer}, a fim de encontrar ao menos um que viabilize a comunicação.
 
 Cada candidato possui um atributo denominado \textit{base}, que representa o endereço a partir do qual o agente ICE (\textit{ICE agent}) efetivamente envia pacotes ao utilizar esse candidato. Para os candidatos \textit{host}, \textit{server-reflexive} e \textit{peer-reflexive}, a base corresponde ao \textit{local address}. Para o candidato \textit{relayed}, a base é o próprio candidato, isto é, o endereço alocado pelo servidor TURN, pois é o servidor, e não o \textit{host}, quem envia os pacotes a partir desse endereço.
+\end{comment}
 
+Após a coleta, os agentes trocam candidatos e credenciais ICE por um canal de sinalização, cujo funcionamento não é definido pelo protocolo. Cada agente combina os candidatos locais e remotos em pares, ordena-os por prioridade e realiza verificações de conectividade por meio de mensagens STUN \texttt{Binding}, conforme descrito na subseção seguinte.
+\begin{comment}
+    
 Após a descoberta dos candidatos, o agente ICE os ordena por prioridade e os troca com o outro \textit{peer} por meio de um servidor de sinalização. A prioridade de cada candidato resulta de uma fórmula em que cada tipo de candidato possui um peso específico. O ICE não define o servidor de sinalização, que pode ser qualquer canal confiável entre os \textit{peers}. De posse dos candidatos de ambos os lados, o agente ICE forma pares de candidatos (\textit{candidate pairs}) e inicia as verificações de conectividade por meio de mensagens STUN \texttt{Binding} (\textit{request} e \textit{response}).
 
 O algoritmo do ICE compreende as seguintes etapas, detalhadas a seguir:
@@ -521,10 +757,30 @@ O algoritmo do ICE compreende as seguintes etapas, detalhadas a seguir:
     \item \textbf{Ordenação de candidatos:} O agente ICE ordena os pares de candidatos por prioridade;
     \item \textbf{Verificações de conectividade:} Os agentes verificam cada par de candidatos por meio de mensagens STUN \texttt{Binding}; ao receber uma requisição de verificação, o \textit{peer} responde com uma \textit{Binding Success Response}.
 \end{itemize}
+\end{comment}
 
 \subsubsection{Verificações de Conectividade do ICE}
 \label{sec:ice_connectivity_checks}
 
+Os agentes ICE verificam os pares de candidatos na ordem de prioridade da \textit{checklist}, utilizando requisições e respostas STUN \texttt{Binding} nos dois sentidos. Ao receber uma requisição, o agente também agenda uma verificação no sentido inverso (\textit{triggered check}), favorecendo a descoberta de conectividade bidirecional. Os pares verificados com sucesso integram a \textit{valid list}, da qual será selecionado um par por componente da comunicação \citep{rfc8445}.
+
+Um participante assume o papel de agente controlador (\textit{controlling agent}) e o outro, de agente controlado (\textit{controlled agent}). O controlador nomeia um par válido por meio de uma requisição STUN \texttt{Binding} com o atributo \texttt{USE-CANDIDATE}; após a conclusão bem-sucedida da nomeação, o par pode ser selecionado para transportar os dados. A Figura~\ref{fig:4way_and_attribute} ilustra as verificações e a nomeação \citep{rfc8445}.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.7\linewidth]{fig/ICE/4way_and_attribute.png}
+        \caption{Verificações de conectividade do ICE com o atributo \texttt{USE-CANDIDATE}, baseado em \citep{rfc8445}.}
+        \label{fig:4way_and_attribute}
+\end{figure}
+
+As requisições são retransmitidas quando não recebem resposta, pois os primeiros pacotes podem ser descartados pela filtragem dos NATs antes da abertura dos mapeamentos ou sofrer perdas no caminho. As novas tentativas permitem verificar a conectividade sem considerar uma ausência inicial de resposta como falha definitiva do par.
+
+O parâmetro Ta controla o intervalo entre o início de novas verificações, com valor recomendado de 50~ms e mínimo de 5~ms. O RTO (\textit{Retransmission Timeout}) determina a espera antes de retransmitir uma requisição, aumentando exponencialmente nas tentativas seguintes. Para as verificações ICE, seu valor inicial é calculado conforme o RFC~8445 e deve ser de pelo menos 500~ms \citep{rfc8445, rfc8489}.
+
+\begin{comment}
+\subsubsection{Verificações de Conectividade do ICE}
+\label{sec:ice_connectivity_checks}
+    
 As verificações de conectividade avaliam os pares de candidatos para selecionar o melhor par da lista de prioridades e confirmar que ao menos um deles viabiliza a comunicação. O uso de \textit{relay} praticamente garante a comunicação; entretanto, por ser a opção menos eficiente, os candidatos \textit{relayed} recebem a menor prioridade e funcionam como última alternativa.
 
 As verificações de conectividade seguem um \textit{handshake} de quatro mensagens (\textit{4-way handshake}), o que corresponde a dois RTTs (\textit{Round Trip Time}), conforme ilustra a Figura~\ref{fig:connectivity_check_4way_handshake}. O agente ICE executa as verificações na ordem da lista de prioridade dos pares de candidatos, denominada \textit{checklist}. Os \textit{triggered checks} otimizam esse processo: ao receber uma verificação de um par, o agente envia imediatamente uma verificação no sentido oposto, o que acelera a descoberta de pares válidos. O agente insere os pares que passam na verificação, denominados \textit{valid pairs}, em uma lista própria, a \textit{valid list}. Ao final do processo, o ICE seleciona um par por componente; assim, há mais de um par selecionado apenas quando a comunicação possui mais de um componente de \textit{stream}, como no uso do RTP (\textit{Real-time Transport Protocol}) e do RTCP (\textit{RTP Control Protocol}), protocolos que são utilizados no padrão WebRTC descritos na Seção~\ref{sec:webrtc}, em cenários sem multiplexação de componentes (Estes protocolos podem ou não multiplexar diferentes \textit{streams} no mesmo endereço).
@@ -551,12 +807,31 @@ Como os pacotes do \textit{4-way handshake} podem ser perdidos, o agente ICE os 
     \item \textbf{Ta:} Intervalo mínimo entre o envio de verificações de conectividade. Como pode haver mais de uma verificação em andamento, retransmissões podem ocorrer enquanto o agente gera novas verificações. O RFC 8445 sugere Ta de 50~ms, mas admite outros valores, desde que respeitem o limite mínimo de 5~ms;
     \item \textbf{RTO:} Tempo de espera antes de uma retransmissão. O protocolo STUN define esse parâmetro \citep{rfc8489}, cujo valor dobra a cada nova retransmissão. O RFC 8445 define o cálculo do RTO inicial, mas admite outros cálculos, desde que o valor inicial seja maior ou igual a 500~ms.
 \end{itemize}
+\end{comment}
 
 \section{Chownat}
 \label{sec:chownat}
 
 O Chownat é uma aplicação desenvolvida por Kamkar \citep{kamkar2004chownat} que aplica as técnicas de travessia de NAT apresentadas na Seção~\ref{sec:udp_hole_punching} para estabelecer uma conexão entre dois \textit{peers}, cada um atrás de um NAT, e encapsular tráfego TCP em UDP. Para isso, a aplicação divide os \textit{peers} em cliente e servidor: o cliente sempre inicia a conexão, e o servidor aguarda a mensagem do cliente.
 
+\subsection{Arquitetura do Chownat}
+
+O Chownat mantém dois \textit{sockets}: um UDP, responsável pelo \textit{hole punching} e pelo transporte entre os \textit{peers}, e um TCP, utilizado na comunicação com a aplicação local. A Figura~\ref{fig:chownat_architecture} ilustra essa arquitetura com um serviço HTTP, mas qualquer serviço TCP pode ser transportado. As portas apresentadas são ilustrativas. Este trabalho utiliza a versão 0.07 do Chownat \citep{kamkar2004chownatv07}.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=1.0\linewidth]{fig/chownat/chownat_architecture.png}
+        \caption{Diagrama de arquitetura do Chownat.}
+        \label{fig:chownat_architecture}
+\end{figure}
+
+A comunicação UDP utiliza a mesma porta nos dois \textit{peers}, sendo 2222 o valor padrão. Como o Chownat original não possui descoberta de candidatos, o endereço IP público do participante remoto deve ser configurado previamente, e o NAT deve preservar a porta de origem na tradução. Neste trabalho, essa preservação é denominada informalmente ``mapeamento espelhado'', sem corresponder a uma classificação padronizada de NAT. A integração com ICE (Seção~\ref{sec:ice}) permite descobrir os endereços e as portas externos, eliminando a dependência de sua configuração prévia e da preservação da porta.
+
+As conexões TCP são locais, vinculadas ao endereço \textit{localhost}. O cliente Chownat aceita a conexão da aplicação local, enquanto o servidor Chownat conecta-se ao serviço TCP de destino. Os dados recebidos de cada conexão local são encaminhados por UDP ao outro \textit{peer}, que os entrega à aplicação correspondente. Assim, apenas o conteúdo das aplicações atravessa o túnel, enquanto os segmentos de controle TCP permanecem locais.
+
+Os papéis de cliente e servidor do Chownat definem o funcionamento do túnel, mas não determinam, por si só, a arquitetura da aplicação. A classificação como cliente-servidor ou P2P depende do serviço executado sobre esse transporte (Seção~\ref{sec:network_architecture_models}).
+
+\begin{comment}
 \subsection{Arquitetura do Chownat}
 
 O Chownat possui uma arquitetura que permite o tunelamento de serviços TCP sobre UDP. Para isso, a aplicação mantém abertos dois \textit{sockets}: um UDP, que realiza o \textit{hole punching}, e um TCP, que gerencia o serviço TCP. A Figura~\ref{fig:chownat_architecture} ilustra essa arquitetura.
@@ -577,11 +852,42 @@ Por exemplo, se o \textit{socket} UDP do cliente estiver vinculado a cIP:2222, o
 O \textit{socket} TCP vincula-se ao endereço \textit{localhost} e a uma porta que depende da função do \textit{peer}; assim, todo o tráfego TCP ocorre internamente no \textit{peer}. No servidor, a porta corresponde à do serviço associado (no exemplo da Figura~\ref{fig:chownat_architecture}, a porta 80 do serviço HTTP). No cliente, o Chownat utiliza qualquer porta livre (no exemplo, a porta 44444), para a qual o cliente do serviço TCP direciona todo o seu tráfego. Como o transporte TCP ocorre apenas localmente, o Chownat coleta o \textit{payload} (conteúdo) que o cliente TCP envia ao \textit{socket} e transporta apenas esse \textit{payload} via UDP, sem os segmentos de controle do TCP. Da mesma forma, o Chownat coleta o \textit{payload} recebido pelo \textit{socket} UDP e o entrega ao serviço local por meio do \textit{socket} TCP. Esse processo constitui o tunelamento de TCP sobre UDP.
 
 Embora utilize técnicas associadas ao modelo P2P, o Chownat não adota necessariamente esse modelo, pois seu transporte segue a lógica cliente-servidor (Seção~\ref{sec:network_architecture_models}). Como o Chownat apenas fornece o meio de comunicação entre os \textit{peers} e não define o papel de cada nó em relação à informação transmitida, a arquitetura geral depende do serviço executado sobre ele.
+\end{comment}
 
 \subsection{Protocolo Chownat}
 \label{sec:chownat_protocol}
 
 O protocolo do Chownat é simples e recupera pacotes perdidos por meio de pacotes de controle, além de prover as operações básicas necessárias à comunicação. O protocolo também deve viabilizar o \textit{hole punching} sobre UDP. Dessa forma, ele se divide em duas etapas: a etapa de conexão e a etapa de comunicação. Antes de descrevê-las, esta seção apresenta o cabeçalho e os tipos de pacotes utilizados.
+
+\subsubsection{Tipos de Pacote do Chownat}
+
+Os pacotes de controle e de dados do Chownat compartilham um cabeçalho de 3 bytes, identificado na análise do código-fonte da versão 0.07 \citep{kamkar2004chownatv07} e ilustrado na Figura~\ref{fig:header_chownat}. O campo \textit{packet type} distingue os cinco tipos apresentados na Tabela~\ref{tab:chownat_packet_types}.
+
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.6\linewidth]{fig/chownat/chownat_headers.png}
+        \caption{Cabeçalhos do Chownat.}
+        \label{fig:header_chownat}
+\end{figure}
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{@{}clp{0.70\textwidth}@{}}
+        \toprule
+        \textbf{Tipo} & \textbf{Categoria} & \textbf{Função} \\
+        \midrule
+        01 & Controle & Início de conexão e do processo de \textit{hole punching}, enviado pelo cliente. \\
+        02 & Controle & Encerramento da conexão, enviado por qualquer participante. \\
+        03 & Controle & \textit{Keep-alive}, utilizado pelo servidor para iniciar o \textit{hole punching} e por ambos os participantes para manter os mapeamentos NAT. \\
+        08 & Dados & Pedido de retransmissão; o campo \textit{packet ID} indica a partir de qual pacote os dados devem ser reenviados. \\
+        09 & Dados & Transporte de dados da aplicação; o campo \textit{packet ID} identifica a sequência dos pacotes. \\
+        \bottomrule
+    \end{tabular}
+    \caption{Tipos de pacote do Chownat, conforme o código-fonte da versão 0.07 \citep{kamkar2004chownatv07}.}
+    \label{tab:chownat_packet_types}
+\end{table}
+
+\begin{comment}
 
 \subsubsection{Tipos de Pacote do Chownat}
 
@@ -610,7 +916,16 @@ O campo \textit{packet type} abrange 5 tipos de pacotes, distribuídos entre con
     \item \textbf{08:} Pacote de requisição de retransmissão, que ambos os \textit{peers} podem utilizar para solicitar a retransmissão de pacotes; o campo \textit{packet ID} indica a partir de qual pacote o \textit{peer} necessita da retransmissão;
     \item \textbf{09:} Pacote de envio de dados, que ambos os \textit{peers} utilizam para enviar o \textit{payload} do serviço TCP; o campo \textit{packet ID} funciona como número de sequência do pacote.
 \end{itemize}
+\end{comment}
 
+\subsubsection{Etapa de Conexão do Protocolo Chownat}
+\label{sec:chownat_connection}
+
+O servidor vincula os \textit{sockets} e aguarda uma solicitação do cliente, enviando mensagens de \textit{keep-alive} a cada 5~s para criar e manter o mapeamento no NAT. Quando recebe a solicitação, participa de um \textit{3-way handshake} que confirma a comunicação entre os \textit{peers}. Após sua conclusão, conecta-se ao serviço TCP local \citep{kamkar2004chownatv07}.
+
+O cliente aceita inicialmente uma conexão TCP da aplicação local e, em seguida, envia a solicitação de conexão ao servidor Chownat. Os envios dos dois participantes viabilizam o \textit{hole punching}, permitindo concluir o \textit{handshake} e iniciar o transporte dos dados pelo túnel \citep{kamkar2004chownatv07}.
+\begin{comment}
+    
 \subsubsection{Etapa de Conexão do Protocolo Chownat}
 \label{sec:chownat_connection}
 
@@ -622,6 +937,18 @@ O cliente também vincula inicialmente os \textit{sockets}; entretanto, em vez d
 
 Em síntese, no Chownat há um cliente e um servidor UDP para o \textit{hole punching}, enquanto, no TCP, os papéis se invertem: o cliente Chownat atua como servidor TCP e recebe requisições TCP externas à aplicação, e o servidor Chownat atua como cliente TCP, inicia a conexão com o serviço TCP local e redireciona a ele o conteúdo recebido nos pacotes UDP, originalmente enviado pelo cliente TCP conectado ao cliente Chownat.
 
+\end{comment}
+
+\subsubsection{Etapa de Comunicação do Protocolo Chownat}
+
+Durante a comunicação, cada participante coleta os dados recebidos pela conexão TCP local e os encaminha por UDP ao outro \textit{peer}, que os entrega à aplicação correspondente. Esse fluxo ocorre nos dois sentidos, conforme a Figura~\ref{fig:chownat_architecture}. Como os segmentos de controle TCP permanecem locais, o protocolo Chownat assume os mecanismos de ordenação e recuperação de perdas no trecho externo \citep{kamkar2004chownatv07}.
+
+O receptor verifica o identificador de cada pacote de dados e, quando recebe um pacote fora da sequência esperada, descarta-o e solicita a retransmissão a partir do identificador ausente. Entretanto, a perda do último pacote de uma sequência não é detectada por esse mecanismo, pois não há um pacote posterior que evidencie a lacuna, cabendo à aplicação detectar a ausência de resposta \citep{kamkar2004chownatv07}.
+
+Para manter os mapeamentos NAT, o Chownat envia mensagens de \textit{keep-alive} após 5~s sem receber pacotes. O encerramento apresenta limitações na versão 0.07: embora exista um tipo de pacote destinado a essa operação, a implementação original permanece em \textit{loop}, exigindo a finalização do processo para interromper sua execução. Essas limitações motivam as extensões apresentadas no capítulo de implementação (Capítulo \ref{chap:implementation}).
+
+\begin{comment}
+    
 \subsubsection{Etapa de Comunicação do Protocolo Chownat}
 
 A etapa de comunicação realiza o tunelamento de dados TCP sobre UDP nos dois sentidos. No sentido cliente-servidor, o cliente Chownat coleta o \textit{payload} recebido em seu \textit{socket} TCP local, no qual atua como servidor, e o encaminha pelo túnel UDP ao servidor Chownat, que o entrega ao serviço TCP local ao qual está conectado como cliente. No sentido servidor-cliente, o servidor Chownat coleta as respostas do serviço TCP e as encaminha pelo túnel UDP ao cliente Chownat, que as entrega ao cliente TCP local. A Figura~\ref{fig:chownat_architecture} ilustra esse fluxo com o exemplo de uma requisição HTTP, detalhado a seguir.
@@ -639,6 +966,7 @@ Por exemplo, suponha que o cliente Chownat envie três pacotes ao servidor Chown
 Para manter o mapeamento no NAT e a disponibilidade da comunicação, o Chownat utiliza as mensagens de \textit{keep-alive}. Além de servirem de base para o início da comunicação, essas mensagens impedem que o mapeamento expire por inatividade na tabela NAT. O Chownat envia um pacote de \textit{keep-alive} sempre que permanece 5~s sem receber pacotes.
 
 O Chownat apresenta limitações. Além da perda de parte dos recursos de controle do TCP, o protocolo implementa a desconexão apenas parcialmente: embora o protocolo preveja a desconexão, a implementação original da versão 0.07 apenas entra em \textit{loop}, e uma camada superior, como o sistema operacional, precisa finalizar o processo. Assim, para executar novamente o serviço TCP, é necessário um novo processo de conexão, com nova etapa de \textit{hole punching}, o que restringe a aplicação do Chownat. Na adaptação proposta neste trabalho, as aplicações e os serviços TCP locais são executados nos hosts que representam os gateways. Essa organização fornece o ponto de integração entre os dados das aplicações locais e o transporte externo.
+\end{comment}
 
 \begin{comment}
     

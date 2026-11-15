@@ -160,16 +160,33 @@ Para o fornecimento dos serviços STUN e TURN, foi utilizada a biblioteca \textt
 
 Para o fornecimento do serviço de sinalização, o servidor será responsável por executar um \textit{script} simples que realiza a troca de informações entre os \textit{peers}. Este \textit{script} executa um servidor TCP que ouve em todas as interfaces na porta 5555 e aguarda a conexão dos dois \textit{peers}. Assim que os \textit{peers} se conectam, é iniciada a troca de informações entre eles, contendo os dados sobre os candidatos locais de cada \textit{peer}, obtidos por meio do servidor STUN/TURN ou de outro método, juntamente com as informações necessárias para a autenticação prevista no protocolo ICE.
 
-\subsection{Infraestrutura controlada}
+\subsection{Infraestrutura Física Controlada}
 
-Configurar nos roteadores da Datacom...
+\label{sec:physical_infrastructure}
 
-\cgk{lembrar de adicionar se fizer configurações}
+Além do ambiente baseado na biblioteca \texttt{PatchBay}, foi preparada uma infraestrutura com dois computadores e três roteadores físicos da DATACOM. Os roteadores utilizados são do modelo DM956 5GT 1800, os mesmos utilizados anteriormente no projeto com a empresa, como descrito na Seção~\ref{sec:hole_punching_protocols}. O objetivo dessa montagem é exercitar a implementação utilizando interfaces e equipamentos reais de encaminhamento e tradução de endereços, mantendo a organização lógica da topologia ICE descrita na Seção~\ref{sec:ice_topology}.
+
+Um roteador base, com endereço \texttt{10.0.0.1}, fornece a rede \texttt{10.0.0.0/24}, à qual estão conectados o servidor de serviços auxiliares e as interfaces WAN dos dois roteadores NAT. O roteador A utiliza o endereço WAN \texttt{10.0.0.117}, enquanto o roteador B utiliza \texttt{10.0.0.40}. Ambos disponibilizam uma LAN com prefixo \texttt{192.168.80.0/24} e endereço de \textit{gateway} \texttt{192.168.80.1}. Essas LANs são segmentos separados, apesar de utilizarem o mesmo endereçamento. Os \textit{peers} A e B utilizam, respectivamente, os endereços \texttt{192.168.80.100} e \texttt{192.168.80.101}. Esta topologia pode ser vista na Figura~\ref{fig:physical_topology}.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/results/physical/physical_topology.png}
+    \caption{Topologia utilizada na simulação física com roteadores da DATACOM.}
+    \label{fig:physical_topology}
+\end{figure}
+
+O primeiro computador acumula duas funções: executar o peer A e hospedar os serviços auxiliares. Sua interface Ethernet conecta o peer A à LAN do roteador A, enquanto a interface Wi-Fi conecta o servidor à rede do roteador base, com endereço \texttt{10.0.0.108}. Nesse servidor, o \texttt{coturn} disponibiliza STUN/TURN por UDP na porta 3478, e o serviço de sinalização utiliza TCP na porta 5555. O segundo computador executa o peer B, conectado à LAN do roteador B.
+
+Para separar as funções executadas no primeiro computador, a interface Ethernet do peer A é movida para um \textit{network namespace} próprio. Esse namespace recebe uma rota padrão pelo roteador A. A separação impede que o acesso ao servidor, hospedado no mesmo computador, seja resolvido diretamente pela pilha de rede local, contornando o roteador NAT. Diferentemente do ambiente PatchBay, nesse caso o namespace isola uma interface física, enquanto o encaminhamento e a tradução de endereços são realizados pelos roteadores externos.
+
+A execução é organizada por um script com papéis distintos para os dois computadores. No papel A, são preparados os serviços auxiliares, o namespace e a aplicação geradora de dados. No papel B, são iniciados o peer remoto e um serviço TCP de echo.
+
+O script também inicia capturas nas interfaces utilizadas pelo peer A, pelo servidor e pelo peer B. Os arquivos PCAP e os registros dos processos são armazenados por execução, permitindo relacionar a negociação ICE, o estabelecimento QUIC e a comunicação entre os gateways. Os resultados obtidos nesse ambiente são apresentados na Seção~\ref{sec:physical_results}.
 
 \section{Protocolos de Comunicação para Hole Punching}
 \label{sec:hole_punching_protocols}
 
-Este trabalho teve origem em um projeto realizado em conjunto com a Datacom, cujo objetivo era viabilizar a comunicação entre dois \textit{peers} com o mínimo de infraestrutura possível. % Opcional: Com o encerramento do projeto, o trabalho passou a ser continuado em caráter acadêmico, no contexto deste TCC.
+Este trabalho teve origem em um projeto realizado em conjunto com a Datacom, cujo objetivo era viabilizar a comunicação entre dois \textit{peers} com o mínimo de infraestrutura possível. Com o encerramento do projeto, o trabalho passou a ser continuado em caráter acadêmico, no contexto deste TCC.
 
 Inicialmente, o objetivo era transmitir dados TCP, especificamente HTTP, por meio de técnicas de \textit{hole punching}. Dada a complexidade do TCP \textit{hole punching}, vista na Seção~\ref{sec:tcp_hole_punching}, optou-se pelo UDP \textit{hole punching}. Como base, foi utilizado o Chownat, que, além de realizar \textit{hole punching}, é capaz de tunelar dados TCP sobre UDP sem o custo dos pacotes de controle do TCP, permitindo uma comunicação direta e rápida entre os \textit{peers}.
 
@@ -353,7 +370,7 @@ Assim como no Chownat, esta etapa inicial inicializa a \textit{socket} UDP, vinc
 
 O processo de \textit{hole punching} da implementação ``ossl\_quic'' segue o mesmo padrão visto no Chownat: o objetivo central é a realização do \textit{hole punching} de forma prévia à conexão QUIC, implementando assim, de forma parcial, a primeira proposta descrita por \citep{draft-seemann-quic-nat-traversal}. Na prática, este \textit{hole punching} pode ser realizado utilizando o próprio ICE, como descrito na Seção~\ref{sec:ice_library}.
 
-Após a realização do \textit{hole punching} por si só, inicia-se a conexão QUIC. Isto implica a implementação da etapa opcional de conexão UDP, descrita na Seção~\ref{sec:interface_connection_flow_and_hole_punching} e ilustrada na Figura~\ref{fig:udp_conn_connection_flow_diagram}. Para a realização desta operação, é primeiro necessário executar uma operação interna da implementação, chamada por este trabalho de \textit{pre connect}. Além disso, é relevante relembrar que não é necessário realizar o descarte de pacotes manualmente, pois, como visto na Seção~\ref{sec:quic_long_header_packets}, que se baseia em \citep{rfc9000}, pacotes \texttt{Initial} recebidos pela \textit{engine} do QUIC que possuam tamanho menor que 1200 bytes já são descartados automaticamente por ela.
+Após a realização do \textit{hole punching} por si só, inicia-se a conexão QUIC. Isto implica a implementação da etapa opcional de conexão UDP, descrita na Seção~\ref{sec:interface_connection_flow_and_hole_punching} e ilustrada na Figura~\ref{fig:udp_conn_connection_flow_diagram}. Para a realização desta operação, é primeiro necessário executar uma operação interna da implementação, chamada por este trabalho de \textit{pre connect}. Além disso, é relevante relembrar que não é necessário realizar o descarte de pacotes manualmente, pois, como visto por \citep{rfc9000}, pacotes \texttt{Initial} recebidos pela \textit{engine} do QUIC que possuam tamanho menor que 1200 bytes já são descartados automaticamente por ela.
 
 A \textit{pre connect} é uma operação realizada antes da conexão, como o próprio nome sugere, sendo responsável por criar uma nova conexão SSL (nome dado às conexões da OpenSSL), posteriormente utilizada para realizar a conexão QUIC. Esta operação executa três ações principais: cria a conexão (ou \textit{listener}, no caso do servidor); inicializa cada um desses objetos em seu devido estado; e vincula o FD (\textit{file descriptor}) correspondente, configurando a conexão do cliente como cliente e a do servidor como \textit{listener}. Além disso, no lado do cliente, é chamada a função \texttt{connect} da POSIX, responsável por vincular uma \textit{socket} UDP a um endereço remoto, sem necessariamente realizar uma conexão (diferentemente do que ocorreria com TCP). Já no lado do servidor, a \textit{socket} é configurada inicialmente como bloqueante, para que o servidor aguarde pela própria conexão QUIC.
 

@@ -15,6 +15,21 @@ A abordagem adotada utiliza ICE para estabelecer o caminho de comunicação, em 
 
 \section{História do QUIC}
 
+O desenvolvimento do QUIC foi motivado por limitações da pilha TCP/TLS/HTTP, como o bloqueio da entrega de todos os fluxos multiplexados sobre uma conexão TCP quando ocorre a perda de um segmento (\textit{Head-of-Line Blocking}). Além disso, a implementação do TCP no núcleo do sistema operacional e a interferência de equipamentos intermediários dificultam a implantação de alterações no protocolo. O QUIC utiliza UDP e implementa suas funções de transporte no espaço de usuário, facilitando sua evolução \citep{marx2020quic}.
+
+A implementação original, denominada Google QUIC (GQUIC), foi desenvolvida pelo Google a partir de 2012 para melhorar o desempenho do tráfego HTTPS. Ela já integrava multiplexação de fluxos e mecanismos criptográficos, mas utilizava um protocolo de segurança próprio, o QUIC Crypto. Em 2016, o IETF criou o grupo de trabalho QUIC para padronizar o protocolo com base nessa experiência, incorporando alterações como a substituição do QUIC Crypto pelo TLS~1.3 e a separação entre o transporte e o mapeamento do HTTP \citep{marx2020quic}.
+
+Esse processo resultou no QUICv1, publicado em 2021 no RFC~9000 e adotado como referência neste trabalho \citep{rfc9000}. A versão padronizada integra o estabelecimento do transporte ao \textit{handshake} TLS~1.3 e fornece \textit{streams} independentes em uma mesma conexão \citep{rfc9001}. A Figura~\ref{fig:quic_stack} apresenta a pilha resultante, na qual o QUIC incorpora funções anteriormente distribuídas entre TCP e TLS e serve de transporte para protocolos de aplicação, como o HTTP/3.
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=0.7\textwidth]{fig/QUIC/quic_stack.png}
+    \caption{Pilha de protocolos utilizando QUIC. Fonte: adaptado de \citep{marx2020quic}.}
+    \label{fig:quic_stack}
+\end{figure}
+
+\begin{comment}
+
 O desenvolvimento do QUIC foi motivado pelas limitações da pilha tradicional TCP/TLS/HTTP \citep{marx2020quic}, ilustrada na Figura~\ref{fig:tcp_http_stack}. Embora o HTTP/2 tenha introduzido a multiplexação de fluxos sobre uma única conexão, ele ainda depende do TCP, que entrega os bytes estritamente em ordem. Assim, a perda de um único segmento bloqueia a entrega dos dados de todos os fluxos multiplexados até a sua retransmissão, problema conhecido como \textit{Head-of-Line Blocking}. Além disso, \textit{middleboxes}, como NATs e \textit{firewalls}, inspecionam e, por vezes, modificam o cabeçalho TCP, descartando pacotes com opções desconhecidas, o que dificulta a evolução do protocolo. A implementação do TCP no núcleo do sistema operacional também retarda a adoção de novas funcionalidades. Por fim, mudanças de mapeamento de endereço realizadas pelos próprios NATs, como o \textit{NAT rebinding}, interrompem conexões TCP, pois estas são identificadas pela quádrupla de endereços e portas.
 
 \begin{figure}[!ht]
@@ -63,6 +78,7 @@ O resultado desse processo foi a primeira versão padronizada do protocolo, o QU
     \caption{Pilha de protocolos utilizando QUIC. Fonte: adaptado de \citep{marx2020quic}.}
     \label{fig:quic_stack}
 \end{figure}
+\end{comment}
 
 \section{Pacotes do QUIC}
 \label{sec:quic_packets}
@@ -77,14 +93,19 @@ O QUIC define dois formatos de pacote \citep{rfc9000}: os pacotes com \textit{lo
 \end{figure}
 
 
-Cada formato de cabeçalho se subdivide em tipos de pacote, e cada tipo cumpre uma função em uma etapa específica da conexão. Os pacotes com \textit{long header} compreendem os tipos \texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{Retry}, utilizados durante o estabelecimento da conexão, enquanto o \textit{short header} possui um único tipo, o \texttt{1-RTT}, utilizado após o \textit{handshake}. Cada tipo de pacote pode transportar apenas determinados tipos de \textit{frame}, conforme a Tabela~\ref{tab:quic_frames_tab}.
+Cada formato de cabeçalho se subdivide em tipos de pacote, e cada tipo cumpre uma função em uma etapa específica da conexão. Os pacotes com \textit{long header} compreendem os tipos \texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{Retry}, utilizados durante o estabelecimento da conexão, enquanto o \textit{short header} possui um único tipo, o \texttt{1-RTT}, utilizado após o \textit{handshake}. Cada tipo de pacote pode transportar apenas determinados tipos de \textit{frame}.
 
-Há ainda o pacote de \textit{Version Negotiation}, enviado pelo servidor quando este não suporta a versão proposta pelo cliente. Esse pacote utiliza o formato de \textit{long header}, com o campo de versão igual a zero, e não pertence a nenhuma versão específica do QUIC \citep{rfc8999}. A Seção~\ref{sec:version_negotiation_packet} descreve esse pacote.
+Há ainda o pacote de \textit{Version Negotiation}, enviado pelo servidor quando este não suporta a versão proposta pelo cliente. Esse pacote utiliza o formato de \textit{long header}, com o campo de versão igual a zero, e não pertence a nenhuma versão específica do QUIC \citep{rfc8999}. 
+
+\begin{comment}
+    
+A Seção~\ref{sec:version_negotiation_packet} descreve esse pacote.
+\end{comment}
 
 \subsection{Cabeçalhos do QUIC}
 \label{sec:quic_headers}
 
-O RFC~8999 \citep{rfc8999} define as propriedades do QUIC independentes de versão, entre elas os dois formatos de cabeçalho: o \textit{long header} e o \textit{short header}. O primeiro é utilizado durante o estabelecimento da conexão, enquanto o segundo é utilizado a partir do momento em que as chaves 1-RTT estão disponíveis. Os demais campos de cada formato dependem da versão do protocolo. Este trabalho adota a primeira versão, o QUICv1, e descreve os campos conforme o RFC~9000 \citep{rfc9000}.
+O RFC~8999 \citep{rfc8999} define as propriedades do QUIC independentes de versão, entre elas os dois formatos de cabeçalho: o \textit{long header} e o \textit{short header}. O primeiro é utilizado durante o estabelecimento da conexão, enquanto o segundo é utilizado a partir do momento em que as chaves 1-RTT estão disponíveis. Os demais campos de cada formato dependem da versão do protocolo. Este trabalho adota a primeira versão, o QUICv1, e apresenta os formatos conforme o RFC~9000 \citep{rfc9000}.
 
 \subsubsection{Long Header}
 \label{sec:quic_long_header}
@@ -96,8 +117,7 @@ O RFC~8999 \citep{rfc8999} define as propriedades do QUIC independentes de vers�
         \label{fig:quic_long_header}
 \end{figure}
 
-A Figura~\ref{fig:quic_long_header} apresenta o formato do \textit{long header}, utilizado pelos quatro tipos de pacote listados na Tabela~\ref{tab:quic_long_header_packets} e descritos na Seção~\ref{sec:quic_long_header_packets}. O RFC~9000 \citep{rfc9000} define os campos comuns a esses pacotes e os campos específicos de cada tipo, descritos a seguir:
-
+A Figura~\ref{fig:quic_long_header} apresenta o formato do \textit{long header}, utilizado pelos quatro tipos de pacote listados na Tabela~\ref{tab:quic_long_header_packets}.
 
 \begin{table}[!ht]
     \centering
@@ -116,6 +136,8 @@ A Figura~\ref{fig:quic_long_header} apresenta o formato do \textit{long header},
     \label{tab:quic_long_header_packets}
 \end{table}
 
+\begin{comment}
+    
 \begin{itemize}
     \item \textbf{Primeiro byte:}
     \begin{itemize}
@@ -132,6 +154,8 @@ A Figura~\ref{fig:quic_long_header} apresenta o formato do \textit{long header},
     \item \textbf{Type-Specific Payload}: campos específicos de cada tipo de pacote, descritos na Seção~\ref{sec:quic_long_header_packets}.
 \end{itemize}
 
+\end{comment}
+
 \subsubsection{Short Header}
 \label{sec:quic_short_header}
 
@@ -146,8 +170,15 @@ A Figura~\ref{fig:quic_short_header} apresenta o formato do \textit{short header
         \label{fig:quic_short_header}
 \end{figure}
 
+\begin{comment}
+    
+O \textit{short header} possui um único tipo de pacote, o \texttt{1-RTT}, descrito na Seção~\ref{sec:quic_short_header_packets}.
 
-O \textit{short header} possui um único tipo de pacote, o \texttt{1-RTT}, descrito na Seção~\ref{sec:quic_short_header_packets}. O RFC~9000 \citep{rfc9000} define seus campos, descritos a seguir:
+\end{comment}
+
+\begin{comment}
+    
+O RFC~9000 \citep{rfc9000} define seus campos, descritos a seguir:
 
 \begin{itemize}
     \item \textbf{Primeiro byte:}
@@ -164,6 +195,8 @@ O \textit{short header} possui um único tipo de pacote, o \texttt{1-RTT}, descr
     \item \textbf{Packet Payload}: conteúdo cifrado do pacote, composto por um ou mais \textit{frames}.
 \end{itemize}
 
+\end{comment}
+
 \subsubsection{Proteção de cabeçalho}
 \label{sec:quic_header_protection}
 
@@ -171,7 +204,11 @@ Estudos como o de \citep{reed2017identifying} demonstram que os metadados expost
 
 Para cada nível de criptografia (\textit{Initial}, \textit{0-RTT}, \textit{Handshake} e \textit{1-RTT}), o QUIC deriva um segredo, a partir do qual a função HKDF (\textit{HMAC-based Key Derivation Function}) gera três valores: a chave de proteção do pacote, um IV (\textit{Initialization Vector}) e a chave de proteção do cabeçalho \citep{rfc9001}. Na proteção do pacote, o \textit{nonce} exigido pelo algoritmo AEAD (\textit{Authenticated Encryption with Associated Data}) resulta do XOR entre o IV e o número completo do pacote, completado com zeros à esquerda até o tamanho do IV. Como os números de pacote não se repetem em um mesmo espaço de numeração, o \textit{nonce} é único para cada pacote cifrado com a mesma chave.
 
+\begin{comment}
+    
 Na proteção do cabeçalho, o número do pacote não pode servir como entrada, pois o receptor precisa remover essa proteção para conhecê-lo. Por isso, o QUIC utiliza como entrada uma amostra de 16 bytes do próprio \textit{ciphertext} do pacote, iniciada 4 bytes após o início do campo \textit{Packet Number}. Por resultar da cifragem, essa amostra é pseudoaleatória e cumpre o papel de um segundo \textit{nonce} \citep{marx2020quic}. A amostra e a chave de proteção do cabeçalho alimentam uma função que gera uma máscara: o AES em modo ECB (\textit{Electronic Code Book}), quando a suíte de cifras utiliza AES, ou o ChaCha20, quando a suíte utiliza ChaCha20-Poly1305 \citep{rfc9001}. A máscara é combinada via XOR com os bits menos significativos do primeiro byte, quatro no \textit{long header} e cinco no \textit{short header}, e com os bytes do campo \textit{Packet Number}.
+
+\end{comment}
 
 A Figura~\ref{fig:quic_short_header_protection} ilustra a aplicação da \textit{header protection} a um pacote com \textit{short header}.
 
@@ -185,6 +222,29 @@ A Figura~\ref{fig:quic_short_header_protection} ilustra a aplicação da \textit
 \end{figure}
 
 \subsection{Tipos de pacotes QUIC}
+
+O QUICv1 utiliza pacotes com \textit{long header} (\texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{Retry}) durante o estabelecimento e a retomada de conexões, enquanto os pacotes com \textit{short header} (\texttt{1-RTT}) transportam dados e controle a partir da disponibilização das chaves de aplicação. Há ainda o pacote \textit{Version Negotiation}, cujo formato independe da versão do protocolo e permite informar as versões suportadas pelo servidor \citep{rfc8999, rfc9000}. A Tabela~\ref{tab:quic_packet_types} resume a função de cada tipo.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{@{}p{0.24\textwidth}p{\dimexpr0.76\textwidth-2\tabcolsep\relax}@{}}
+        \toprule
+        \textbf{Tipo de pacote} & \textbf{Função} \\
+        \midrule
+        \texttt{Initial} & Transporta as primeiras mensagens do \textit{handshake} TLS. Os datagramas enviados pelo cliente que contêm esse tipo de pacote devem ter ao menos 1200 bytes. \\
+        \texttt{Handshake} & Transporta as mensagens TLS que completam a negociação criptográfica após o \texttt{ServerHello}. \\
+        \texttt{Retry} & Permite ao servidor solicitar a validação do endereço do cliente antes de prosseguir com o \textit{handshake}. \\
+        \texttt{0-RTT} & Transporta dados antecipados do cliente na retomada de uma sessão anterior. Esse recurso não foi avaliado nos experimentos. \\
+        \texttt{1-RTT} & Transporta dados de aplicação e informações de controle após a disponibilização das chaves de aplicação. \\
+        \textit{Version Negotiation} & Informa as versões suportadas pelo servidor quando a versão proposta pelo cliente não é aceita. \\
+        \bottomrule
+    \end{tabular}
+    \caption{Tipos de pacotes QUIC e suas funções baseado em \citep{rfc8999, rfc9000, rfc9001}.}
+    \label{tab:quic_packet_types}
+\end{table}
+
+\begin{comment}
+    
 
 O QUIC define seis tipos de pacote: \texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{Retry}, com \textit{long header}; \texttt{1-RTT}, com \textit{short header}; e \textit{Version Negotiation}, descrito na Seção~\ref{sec:version_negotiation_packet}. Os pacotes \texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{1-RTT} estão associados a um nível de criptografia, discutido na Seção~\ref{sec:quic_packet_protection}, e a um dos três espaços de números de pacote (\textit{packet number spaces}): \textit{Initial}, \textit{Handshake} e \textit{Application Data}, este último compartilhado pelos pacotes \texttt{0-RTT} e \texttt{1-RTT}. Cada espaço mantém sua própria numeração, independente dos demais, conforme discutido na Seção~\ref{sec:quic_acknowledgement}. Os pacotes \texttt{Retry} e \textit{Version Negotiation} não possuem número de pacote; o \texttt{Retry} possui apenas uma etiqueta de integridade, e o \textit{Version Negotiation} não possui proteção criptográfica.
 
@@ -272,8 +332,21 @@ A \textit{Retry Integrity Tag} é um campo de 128 bits que encerra o pacote \tex
 \paragraph{1-RTT Keys}
 
 As \textit{1-RTT Keys} derivam do \textit{Master Secret} do TLS~1.3, que, por sua vez, deriva do \textit{Handshake Secret} \citep{rfc8446}. Do \textit{Master Secret}, o TLS obtém um segredo de tráfego de aplicação para cada sentido, com os rótulos \texttt{c ap traffic} e \texttt{s ap traffic}, que incorporam o \textit{hash} das mensagens do \textit{handshake} até o \texttt{Finished} do servidor. Assim como nas \textit{Handshake Keys}, o QUIC aplica a esses segredos os rótulos \texttt{quic key}, \texttt{quic iv} e \texttt{quic hp} \citep{rfc9001}. Na atualização de chaves sinalizada pelo bit \textit{Key Phase}, o QUIC deriva um novo segredo com o rótulo \texttt{quic ku}, sem alterar a chave de proteção do cabeçalho. As \textit{1-RTT Keys} protegem exclusivamente os pacotes \texttt{1-RTT}.
+\end{comment}
+
+\subsubsection{Proteção de pacotes}
+\label{sec:quic_packet_protection}
+
+A proteção dos pacotes QUIC varia conforme a etapa da conexão e complementa a proteção de cabeçalho descrita na Seção~\ref{sec:quic_header_protection}. O protocolo utiliza chaves distintas para os níveis \textit{Initial}, \textit{0-RTT}, \textit{Handshake} e \textit{1-RTT}, cujas garantias e limitações são resumidas a seguir \citep{rfc9001}.
+
+Nos pacotes \texttt{Initial}, as chaves derivam de informações públicas, de modo que sua proteção não oferece confidencialidade contra observadores do tráfego. Os pacotes \texttt{Handshake} e \texttt{1-RTT} utilizam chaves derivadas da negociação TLS~1.3 para proteger, respectivamente, as mensagens posteriores ao \texttt{ServerHello} e os dados e controles da conexão. Os pacotes \texttt{0-RTT} utilizam chaves associadas a uma sessão anterior, mas não oferecem sigilo futuro (\textit{forward secrecy}) e estão sujeitos à reprodução de mensagens (\textit{replay}), exigindo cuidados da aplicação. Já o pacote \texttt{Retry} não é cifrado e possui uma etiqueta de integridade calculada com parâmetros públicos, que não autentica o servidor; o pacote \textit{Version Negotiation} não possui proteção criptográfica. Os mecanismos de derivação de chaves e de proteção são definidos no RFC~9001 \citep{rfc9001}.
 
 \subsubsection{\textit{Frames} do QUIC}
+
+Os \textit{frames} são as unidades de informação transportadas no conteúdo dos pacotes QUIC, e um mesmo pacote pode conter vários deles, com funções de dados ou de controle \citep{rfc9000}. Entre os principais tipos, o \texttt{CRYPTO} transporta mensagens do \textit{handshake} TLS; o \texttt{STREAM}, dados das aplicações; e o \texttt{ACK}, confirmações de recebimento de pacotes. O \texttt{PING} solicita uma confirmação do receptor sem transportar dados de aplicação, enquanto o \texttt{CONNECTION\_\allowbreak{}CLOSE} sinaliza o encerramento da conexão. Os pacotes \texttt{Retry} e \textit{Version Negotiation} não transportam \textit{frames}. A especificação dos formatos e dos tipos permitidos em cada pacote é definida no RFC~9000 \citep{rfc9000}.
+
+\begin{comment}
+    
 
 Com exceção dos pacotes \texttt{Retry} e \textit{Version Negotiation}, o \textit{payload} de um pacote QUIC é composto por uma sequência de \textit{frames}. Cada tipo de pacote admite apenas determinados tipos de \textit{frame}, conforme a Tabela~\ref{tab:quic_frames_tab}. A função de cada tipo de \textit{frame} é definida no RFC~9000 \citep{rfc9000} e não é detalhada neste trabalho.
 
@@ -309,6 +382,7 @@ Com exceção dos pacotes \texttt{Retry} e \textit{Version Negotiation}, o \text
 \label{tab:quic_frames_tab}
 \end{table}
 
+\end{comment}
 
 \section{Conexão do QUIC}
 \label{sec:quic_connection}
@@ -339,7 +413,11 @@ No fluxo padrão, denominado \textit{handshake} 1-RTT, o QUIC combina o estabele
 
 O \textit{handshake} 1-RTT ocorre da seguinte forma. O cliente envia um pacote \texttt{Initial} com a mensagem \texttt{ClientHello}, que contém sua parcela da troca de chaves (EC)DHE e seus parâmetros de transporte.
 
-O servidor responde com um pacote \texttt{Initial}, que contém a confirmação de recebimento (\textit{frame} \texttt{ACK}) do pacote do cliente e a mensagem \texttt{ServerHello}, e com um pacote \texttt{Handshake}, que contém as mensagens \texttt{EncryptedExtensions}, \texttt{Certificate}, \texttt{CertificateVerify} e \texttt{Finished}. Opcionalmente, o servidor envia também um pacote \texttt{1-RTT} com dados 0.5-RTT, discutidos na Seção~\ref{sec:quic_short_header_packets}. Esses pacotes podem ser agrupados em um mesmo datagrama UDP (\textit{coalescing}).
+O servidor responde com um pacote \texttt{Initial}, que contém a confirmação de recebimento (\textit{frame} \texttt{ACK}) do pacote do cliente e a mensagem \texttt{ServerHello}, e com um pacote \texttt{Handshake}, que contém as mensagens \texttt{EncryptedExtensions}, \texttt{Certificate}, \texttt{CertificateVerify} e \texttt{Finished}. Esses pacotes podem ser agrupados em um mesmo datagrama UDP (\textit{coalescing}).
+
+\begin{comment}
+Opcionalmente, o servidor envia também um pacote \texttt{1-RTT} com dados 0.5-RTT, discutidos na Seção~\ref{sec:quic_short_header_packets}.
+\end{comment}
 
 O cliente confirma o recebimento dos pacotes \texttt{Initial} e \texttt{Handshake} do servidor e conclui sua parte do \textit{handshake} TLS ao enviar a mensagem \texttt{Finished} em um pacote \texttt{Handshake}. A partir desse momento, o cliente pode enviar dados de aplicação em pacotes \texttt{1-RTT}.
 
@@ -355,7 +433,19 @@ Ao receber o \texttt{Finished} do cliente, o servidor considera o \textit{handsh
 \subsection{Retomada de sessão (0-RTT)}
 \label{sec:0rtt_connection_recovery}
 
+A retomada de sessão permite que o cliente utilize informações de uma conexão anterior com o mesmo servidor para enviar dados de aplicação antes de concluir um novo \textit{handshake}. A partir de uma chave pré-compartilhada (PSK), obtida por meio de um \textit{session ticket} do TLS~1.3, o cliente deriva as chaves 0-RTT e envia esses dados junto ao primeiro pacote \texttt{Initial}, sem aguardar uma resposta do servidor \citep{rfc9001}. O restante da negociação segue o fluxo 1-RTT. A Figura~\ref{fig:quic0rtt_vs_tcptls} compara a retomada de sessão no QUIC e no TCP com TLS.
 
+\begin{figure}[!ht]
+        \centering
+        \includegraphics[width=0.8\linewidth]{fig/QUIC/quic0rtt_vs_tcptls_cmp.png}
+        \caption{Comparação da retomada de sessão no QUIC (0-RTT) e no TCP com TLS. Fonte: adaptado de \citep{marx2020quic}.}
+        \label{fig:quic0rtt_vs_tcptls}
+\end{figure}
+
+Os dados 0-RTT não oferecem sigilo futuro (\textit{forward secrecy}) e estão sujeitos à reprodução de mensagens (\textit{replay}), conforme discutido na Seção~\ref{sec:quic_packet_protection}. Por isso, a aplicação deve limitar os dados antecipados a operações que possam ser repetidas com segurança \citep{rfc9001}. Esse recurso não foi avaliado nos experimentos deste trabalho.
+
+\begin{comment}
+    
 A retomada de sessão permite que o cliente reaproveite o estado criptográfico de uma conexão anterior com o mesmo servidor. Nessa conexão anterior, o servidor envia ao cliente um \textit{session ticket} do TLS~1.3, a partir do qual o cliente obtém uma PSK. Em uma nova conexão, o cliente deriva dessa PSK as chaves 0-RTT e envia dados de aplicação, em \textit{frames} \texttt{STREAM}, no primeiro voo de mensagens, junto ao pacote \texttt{Initial}, sem aguardar nenhum RTT. O restante do \textit{handshake} segue o fluxo 1-RTT. A Figura~\ref{fig:quic0rtt_vs_tcptls} compara a retomada de sessão no QUIC e no TCP com TLS, e a Figura~\ref{fig:quic_connection_resumption_time_diagram} ilustra o fluxo de pacotes.
 
 \begin{figure}[!ht]
@@ -374,6 +464,8 @@ A retomada de sessão permite que o cliente reaproveite o estado criptográfico 
 
 
 Os dados 0-RTT, entretanto, estão sujeitos a ataques de \textit{replay}, mencionados na Seção~\ref{sec:quic_packet_protection}: um atacante pode capturar um pacote 0-RTT e reenviá-lo ao servidor, que não consegue distinguir a repetição de uma nova requisição, pois o pacote permanece criptograficamente válido. O critério para decidir o que pode ser enviado em 0-RTT é a idempotência. Operações cuja repetição produz o mesmo efeito de uma única execução, como a leitura de dados, podem ser processadas mais de uma vez sem prejuízo, enquanto operações não idempotentes, como uma compra ou uma transferência financeira, podem ter seus efeitos duplicados. Por isso, protocolos de aplicação como o HTTP/3 definem mecanismos próprios de proteção: o servidor pode responder a uma requisição recebida em 0-RTT com o código de status \texttt{425 Too Early} \citep{rfc8470}, o que leva o cliente a repeti-la após a conclusão do \textit{handshake}.
+
+\end{comment}
 
 \subsection{Negociação de versão}
 \label{sec:quic_version_negotiation}
@@ -414,7 +506,7 @@ O servidor também pode fornecer ao cliente, durante uma conexão estabelecida, 
 \subsection{Funcionamento dos \textit{Connection IDs}}
 \label{sec:connection_ids_operation}
 
-Os \textit{Connection IDs} permitem que o \textit{endpoint} receptor associe cada pacote à conexão correta independentemente dos endereços e das portas das camadas inferiores, que podem mudar ao longo da conexão. Cada \textit{endpoint} escolhe os identificadores pelos quais deseja ser endereçado: o DCID de um pacote corresponde ao identificador escolhido pelo receptor, e o SCID, ao identificador escolhido pelo emissor (Seção~\ref{sec:quic_headers}).
+Os \textit{Connection IDs} permitem que o \textit{endpoint} receptor associe cada pacote à conexão correta independentemente dos endereços e das portas das camadas inferiores, que podem mudar ao longo da conexão. Cada \textit{endpoint} escolhe os identificadores pelos quais deseja ser endereçado: o DCID de um pacote corresponde ao identificador escolhido pelo receptor, e o SCID, ao identificador escolhido pelo emissor.
 
 Ao longo da conexão, cada \textit{endpoint} fornece ao outro novos \textit{Connection IDs} por meio de \textit{frames} \texttt{NEW\_\allowbreak{}CONNECTION\_\allowbreak{}ID} e solicita o descarte dos antigos com \textit{frames} \texttt{RETIRE\_\allowbreak{}CONNECTION\_\allowbreak{}ID} \citep{rfc9000}. A troca de identificadores, em especial após uma migração de conexão, impede que um observador externo associe à mesma conexão pacotes enviados por caminhos diferentes. Para isso, um identificador não deve permitir sua correlação com os demais identificadores da mesma conexão, o que leva as implementações a gerá-los com um gerador de números pseudoaleatórios criptograficamente seguro (CSPRNG, \textit{Cryptographically Secure Pseudorandom Number Generator}).
 
@@ -470,6 +562,17 @@ O RFC~9000 \citep{rfc9000} descreve o ciclo de vida de uma \textit{stream} por m
 \subsection{Confirmação de recebimento}
 \label{sec:quic_acknowledgement}
 
+O QUIC confirma o recebimento de pacotes por meio de \textit{frames} \texttt{ACK}, que informam intervalos de números de pacote recebidos. Um pacote é denominado \textit{ack-eliciting} quando contém ao menos um \textit{frame} diferente de \texttt{ACK}, \texttt{PADDING} e \texttt{CONNECTION\_\allowbreak{}CLOSE}, exigindo uma confirmação do receptor. Pacotes compostos apenas por esses três tipos são \textit{non-ack-eliciting}: não provocam uma confirmação por si só, mas podem ser incluídos em um \texttt{ACK} enviado por outro motivo. Essa distinção evita trocas contínuas de confirmações motivadas apenas por outras confirmações \citep{rfc9000, rfc9002}.
+
+Quando ocorre uma perda, o QUIC retransmite as informações necessárias em novos pacotes, com novos números, em vez de reenviar o pacote original. Assim, o emissor distingue a confirmação de uma transmissão original daquela de uma retransmissão. Informações que já perderam sua utilidade, como confirmações antigas, não precisam ser retransmitidas \citep{rfc9000, rfc9002}.
+
+Os números de pacote são organizados em três espaços independentes: \textit{Initial}, \textit{Handshake} e \textit{Application Data}, este último compartilhado pelos pacotes \texttt{0-RTT} e \texttt{1-RTT}. Em cada espaço, os números crescem monotonicamente e nunca são reutilizados. Os detalhes dos mecanismos de detecção de perdas e controle de congestionamento são definidos no RFC~9002 \citep{rfc9002} e estão fora do escopo deste trabalho.
+
+\begin{comment}
+    
+\subsection{Confirmação de recebimento}
+\label{sec:quic_acknowledgement}
+
 Como descrito na Seção~\ref{sec:quic_packets}, um pacote QUIC pode conter vários \textit{frames}. Para fins de confirmação de recebimento, o pacote herda propriedades dos \textit{frames} que contém \citep{rfc9002}:
 
 \begin{itemize}
@@ -500,7 +603,7 @@ Dessa forma, um pacote \textit{non-ack-eliciting} pode nunca ser confirmado, cas
 
 Esse atraso permite ao receptor confirmar vários pacotes com um único \textit{frame} \texttt{ACK}, o que reduz a sobrecarga de confirmações.
 
-No QUIC, a retransmissão não reenvia pacotes, mas as informações neles contidas, em novos pacotes com novos números \citep{rfc9002}. Cada tipo de \textit{frame} segue uma regra própria: os dados de \textit{streams} são reenviados em novos \textit{frames} \texttt{STREAM}, enquanto informações obsoletas, como \textit{frames} \texttt{ACK} antigos, não são retransmitidas. Como os números de pacote nunca se repetem em um mesmo espaço de numeração, o emissor distingue a confirmação de uma transmissão original da confirmação de uma retransmissão, ambiguidade presente no TCP. Essa regra também evita a reutilização de \textit{nonces} na proteção de pacotes (Seção~\ref{sec:quic_packet_protection}). A Seção~\ref{sec:quic_packet_numbers} discute os espaços de números de pacote; os algoritmos de detecção de perda e de retransmissão, definidos no RFC~9002 \citep{rfc9002}, estão fora do escopo deste trabalho.
+No QUIC, a retransmissão não reenvia pacotes, mas as informações neles contidas, em novos pacotes com novos números \citep{rfc9002}. Cada tipo de \textit{frame} segue uma regra própria: os dados de \textit{streams} são reenviados em novos \textit{frames} \texttt{STREAM}, enquanto informações obsoletas, como \textit{frames} \texttt{ACK} antigos, não são retransmitidas. Como os números de pacote nunca se repetem em um mesmo espaço de numeração, o emissor distingue a confirmação de uma transmissão original da confirmação de uma retransmissão, ambiguidade presente no TCP. Essa regra também evita a reutilização de \textit{nonces} na proteção de pacotes. A Seção~\ref{sec:quic_packet_numbers} discute os espaços de números de pacote; os algoritmos de detecção de perda e de retransmissão, definidos no RFC~9002 \citep{rfc9002}, estão fora do escopo deste trabalho.
 
 Os \textit{frames} \texttt{ACK} descrevem intervalos de números de pacote recebidos (\textit{ACK Ranges}), e cada novo \textit{frame} \texttt{ACK} repete os intervalos já informados enquanto o receptor não souber que o emissor os recebeu, ou seja, até que o pacote que transportava esse \textit{frame} \texttt{ACK} seja confirmado \citep{rfc9000}. Assim, a perda de um pacote com um \textit{frame} \texttt{ACK} não exige retransmissão, pois o \textit{frame} \texttt{ACK} seguinte contém as mesmas informações. Como esses intervalos poderiam crescer indefinidamente, o receptor pode deixar de informar intervalos antigos para limitar o tamanho do \textit{frame}, ao custo de possíveis retransmissões desnecessárias pelo emissor.
 
@@ -516,6 +619,8 @@ Os números de pacote variam de 0 a $2^{62}-1$, mas o cabeçalho transporta apen
 \end{itemize}
 
 Cada espaço possui numeração própria e é protegido por chaves distintas, o que separa criptograficamente os pacotes de cada fase da conexão. Em cada espaço, os números de pacote crescem monotonicamente e nunca são reutilizados. Se um \textit{endpoint} esgotar os números disponíveis, atingindo $2^{62}-1$, ele deve encerrar a conexão sem enviar um \textit{frame} \texttt{CONNECTION\_\allowbreak{}CLOSE}; para continuar a comunicação, é necessário estabelecer uma nova conexão.
+
+\end{comment}
 
 \subsection{Controle de fluxo}
 \label{sec:quic_flow_control}

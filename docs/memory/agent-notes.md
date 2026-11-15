@@ -2918,3 +2918,89 @@ Usuário pediu apenas comando de remoção, nenhum PCAP foi apagado pelo agente.
 Script ganhou1s de drenagem antes de matar tcpdump, para reduzir perda de
 pacotes capturados no fim; `bash -n`/`git diff --check` passaram, sem nova
 execução física para validar essa mudança.
+
+
+## Diagnóstico editorial do TCC — 2026-11-13
+
+Pedido do usuário: carregar o texto e compilar temporariamente antes de
+reduzir em conjunto. Meta para o PDF inteiro: preferencialmente 85 páginas,
+até 90; 100 aceitável em último caso. Não houve cortes nos fontes nesta etapa.
+Preservadas as modificações preexistentes em implementação e figuras.
+
+Verificado por leitura dos capítulos ativos, sumário, pdfinfo, pdftotext
+e inspeção visual de páginas renderizadas: cópia em /tmp/tcc-review/text,
+compilada com Tectonic 0.17.0 (binário em /tmp/tcc-review/bin), resultou em
+/tmp/tcc-review/text/main.pdf, com 136 páginas. Distribuição: pré-textuais
+1–14; introdução 15–18 (4); protocolos 19–53 (35); QUIC 54–81 (28);
+implementação 82–110 (29); resultados 111–130 (20); conclusão 131 (apenas
+título); referências 132–136 (5). Compilação com avisos de caixas e alguns
+travessões ausentes na fonte; paginação é referência desta compilação XeTeX,
+não comparação com PDFLaTeX/Overleaf. Nenhum teste de rede executado.
+
+Propostas editoriais ainda não aplicadas: priorizar síntese dos capítulos
+de fundamentação (63 páginas), especialmente cabeçalhos/derivação de chaves,
+frames/ACKs e recursos QUIC não avaliados; depois reduzir história GNS3 e
+repetições da evolução das interfaces. Preservar explicação e evidências da
+integração ICE/BIO/QUIC, remapeamento, TURN, integridade, manutenção/remoção
+e execução física. Seção antiga extensa de WebRTC já está comentada, logo
+apagá-la não reduz PDF. Conclusão ainda precisa de espaço.
+
+## Paginação após cortes editoriais — 2026-11-15
+
+Recompilada cópia dos fontes locais atuais com Tectonic 0.17.0 em
+/tmp/tcc-review/text/main.pdf. pdfinfo confirmou 118 páginas; sumário final:
+pré-textuais 1–14; introdução 15–18 (4); protocolos 19–45 (27);
+QUIC 46–64 (19); implementação 65–93 (29); resultados 94–113 (20);
+conclusão 114 (apenas título); referências 115–118 (4).
+Comparada à compilação inicial de 136 páginas: redução de 18 páginas.
+Fontes do TCC não alterados nesta medição. Mantêm-se avisos de caixas e
+travessões ausentes na fonte; não houve nova avaliação funcional de rede.
+Preferências editoriais do usuário: inglês no corpo em textit, títulos sem
+textit; preservar fundamentação/citações ao condensar. Propostas no chat/temp
+são para revisão; usuário aplica e sincroniza alterações do Overleaf.
+
+### Nova paginação após síntese de ICE/Chownat — 2026-11-15
+
+A pedido do usuário, recompilados os fontes locais atuais em cópia isolada:
+/tmp/tcc-review-5tYGoY/text/main.pdf, Tectonic 0.17.0. pdfinfo confirmou
+113 páginas (23 a menos que as 136 iniciais, 5 a menos que a medição de 118).
+Sumário final: pré-textuais 1–14; introdução 15–18 (4); protocolos 19–40 (22);
+QUIC 41–59 (19); implementação 60–88 (29); resultados 89–108 (20);
+conclusão 109 (apenas título); referências 110–113 (4).
+Fontes não modificados nesta tarefa. Sugestões, não aplicadas: priorizar
+compactação da implementação, especialmente histórico GNS3, configuração do
+laboratório e repetições da evolução da interface/túnel; depois detalhes e
+figuras de migração QUIC não avaliada e repetições metodológicas nos resultados.
+Manter integração ICE/BIO/QUIC e evidências. Para 100 páginas faltam 13,
+além do espaço adicional da conclusão. Compilação mantém avisos de caixas e
+travessões ausentes na fonte; nenhuma nova execução de testes de rede.
+
+## Script físico com parâmetros de topologia — 2026-11-15
+
+Implementado por pedido explícito do usuário em sim/physical/run-physical-ice.sh:
+três argumentos obrigatórios: a|b|cleanup|stop, interface e IPv4 do servidor.
+Removidos IPs, prefixo /24, gateway, interfaces e porta echo1234 fixos. Script
+exige exatamente um IPv4 global na interface, deriva prefixo e rotas da tabela
+main, isola a interface para ambos os papéis e fornece esse IP ao test_quic_ice.
+Snapshot de endereços IPv4/IPv6, rotas main4/6, estado UP e NM-managed fica nos
+artefatos; referência de recuperação em /run/physical-ice-<interface>.state.
+Namespace auxiliar referencia o namespace original para restaurar a interface
+mesmo após a morte do script; lock por interface impede execução simultânea.
+cleanup/stop usam o snapshot, sem valores particulares da antiga topologia.
+
+Se servidor IPv4 é local, deriva interface e inicia coturn/signaling/captura
+nessa interface; rejeita servidor local na mesma interface do peer ou loopback.
+Servidor externo deve estar previamente ativo. Porta TCP local A é efêmera;
+echo B usa bind porta0 e informa a porta efetiva. STUN3478/signaling5555,
+credenciais TURN laboratoriais e teste direto de16384 bytes permanecem.
+Binário C e signaling compartilhado não alterados; teste continua direto,
+sem fallback TURN, embora coturn seja iniciado no servidor local.
+
+Validação: bash -n, ShellCheck0.10.0 e git diff --check passaram. Harnesses
+em /tmp/physical-check simularam comandos ip/nsenter/tcpdump/nmcli/serviços
+com valores diferentes da montagem antiga (172.23.7.91/20, gateway172.23.0.1,
+metric777). Sete casos passaram: A/B com servidor local/remoto (4), falha de
+configuração restaurando rede, stop por TERM com limpeza/lock liberado,
+e cleanup retomando restauração falha. Echo/probe usam TCP loopback real no
+harness, mas o peer QUIC e a rede são simulados: não comprova ICE/QUIC físico.
+Nenhuma interface real movida ou teste físico executado; sudo -n exige senha.
