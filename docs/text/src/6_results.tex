@@ -3,7 +3,7 @@
 
 Este capítulo apresenta a avaliação da infraestrutura de comunicação descrita no Capítulo~\ref{chap:implementation}, com foco no estabelecimento de conectividade e na transferência de dados entre aplicações TCP associadas a \textit{gateways} situados em redes distintas. A avaliação verifica o funcionamento da integração entre QUIC e ICE quanto ao caminho de comunicação selecionado, à integridade dos dados transportados e ao comportamento da solução durante a manutenção e o encerramento das conexões. Os testes utilizam as topologias e os ambientes experimentais descritos nas Seções~\ref{sec:topologies} e~\ref{sec:simulation_environments}.
 
-A Seção~\ref{sec:evaluation_methodology} define o objetivo, a metodologia e os critérios de sucesso da avaliação. A Seção~\ref{sec:experimental_patchbay} descreve o ambiente baseado no PatchBay, os cenários de teste e os parâmetros de execução, e a Seção~\ref{sec:functional_results} apresenta os resultados dos testes funcionais nesse ambiente. A Seção~\ref{sec:physical_results} apresenta a execução na infraestrutura física controlada. Por fim, a Seção~\ref{sec:another_connection_approaches} compara conceitualmente a solução desenvolvida com outras abordagens de comunicação, com base nos conceitos apresentados nos Capítulos~\ref{chap:background} e~\ref{chap:quic}.
+A Seção~\ref{sec:evaluation_methodology} define o objetivo, a metodologia e os critérios de sucesso da avaliação. A Seção~\ref{sec:experimental_patchbay} descreve o ambiente baseado no \texttt{PatchBay}, os cenários de teste e os parâmetros de execução, e a Seção~\ref{sec:functional_results} apresenta os resultados dos testes funcionais nesse ambiente. A Seção~\ref{sec:physical_results} apresenta a execução na infraestrutura física controlada. Por fim, a Seção~\ref{sec:another_connection_approaches} compara conceitualmente a solução desenvolvida com outras abordagens de comunicação, com base nos conceitos apresentados nos Capítulos~\ref{chap:background} e~\ref{chap:quic}.
 
 \section{Objetivo e Metodologia da Avaliação}
 \label{sec:evaluation_methodology}
@@ -21,7 +21,7 @@ Os testes utilizam dados sintéticos para avaliar o transporte entre os \textit{
 \section{Ambiente Experimental e Cenários com PatchBay}
 \label{sec:experimental_patchbay}
 
-Os experimentos utilizam as topologias descritas nas Seções~\ref{sec:basic_topology_network_namespaces} e~\ref{sec:ice_topology_network_namespaces}, executadas com o PatchBay sobre \textit{Linux Network Namespaces}. Esta seção descreve a configuração do ambiente, os cenários de teste e os parâmetros de execução. As interfaces de transporte e os protocolos avaliados estão descritos no Capítulo~\ref{chap:implementation}.
+Os experimentos utilizam as topologias descritas nas Seções~\ref{sec:basic_topology_network_namespaces} e~\ref{sec:ice_topology_network_namespaces}, executadas com o \texttt{PatchBay} sobre \textit{Linux Network Namespaces}. Esta seção descreve a configuração do ambiente, os cenários de teste e os parâmetros de execução. As interfaces de transporte e os protocolos avaliados estão descritos no Capítulo~\ref{chap:implementation}.
 
 \subsection{Plataforma e Serviços Auxiliares}
 
@@ -36,14 +36,14 @@ O desenvolvimento utilizou os sistemas operacionais Ubuntu 24.04 LTS e Rocky Lin
         \toprule
         \textbf{Componente} & \textbf{Versão} & \textbf{Função} \\
         \midrule
-        OpenSSL & 4.1.0 &
+        \texttt{OpenSSL} & 4.1.0 &
         Implementação QUIC e proteção criptográfica. \\
         \texttt{libnice} & 0.1.21 &
         Coleta de candidatos, negociação ICE e transporte
         direto por \textit{hole punching} ou via TURN. \\
         \texttt{coturn} & 4.6.3 &
         Fornecimento dos serviços STUN e TURN. \\
-        PatchBay & 0.7.0 &
+        \texttt{PatchBay} & 0.7.0 &
         Criação e configuração da rede de testes. \\
         \bottomrule
     \end{tabular}
@@ -95,13 +95,13 @@ A rede contém dois \textit{peers}, cada um atrás de um roteador NAT, interliga
 
 Conforme as Figuras~\ref{fig:basic_topology} e~\ref{fig:ice_topology}, a estrutura da rede é a mesma em todos os cenários. Os cenários diferem nas regras de NAT, nos serviços auxiliares habilitados e no transporte utilizado. As LANs são isoladas, embora utilizem o mesmo prefixo \texttt{192.168.80.0/24}. A rede entre o ISP e os roteadores utiliza o prefixo \texttt{10.0.0.0/24}.
 
-Os roteadores partem do perfil \textit{Moderate} do PatchBay (EIM e APDF). Nos cenários sem ICE, regras adicionais preservam a porta de origem, o que permite conhecer previamente os \textit{endpoints} públicos (Seção~\ref{sec:basic_topology_hole_punching}). Nos cenários com ICE, a \texttt{libnice} descobre os candidatos e seleciona o par utilizado (Seção~\ref{sec:ice_library}).
+Os roteadores partem do perfil \textit{Moderate} do \texttt{PatchBay} (EIM e APDF). Nos cenários sem ICE, regras adicionais preservam a porta de origem, o que permite conhecer previamente os \textit{endpoints} públicos (Seção~\ref{sec:basic_topology_hole_punching}). Nos cenários com ICE, a \texttt{libnice} descobre os candidatos e seleciona o par utilizado (Seção~\ref{sec:ice_library}).
 
 A Tabela~\ref{tab:experimental_scenarios} organiza os cenários por configuração de conectividade. Mais de um teste pode exercitar a mesma configuração.
 
 \begin{table}[htbp]
     \centering
-    \caption{Cenários de comunicação avaliados com PatchBay.}
+    \caption{Cenários de comunicação avaliados com \texttt{PatchBay}.}
     \label{tab:experimental_scenarios}
     \small
     \begin{tabular}{@{}p{0.20\textwidth}p{0.38\textwidth}p{\dimexpr0.42\textwidth-4\tabcolsep\relax}@{}}
@@ -381,15 +381,15 @@ Essa sequência permite verificar o efeito de uma correção aplicada à \texttt
 \section{Avaliação em Infraestrutura Física Controlada}
 \label{sec:physical_results}
 
-A avaliação física examinou o estabelecimento de uma conexão QUIC sobre ICE e a transferência de dados de uma aplicação TCP entre computadores conectados por roteadores NAT físicos. O objetivo foi verificar, nesse ambiente, a sequência funcional exercitada pelo caso C10 no PatchBay: descoberta de \textit{endpoints}, seleção de um caminho direto, estabelecimento QUIC e entrega dos dados ao serviço remoto. A análise utiliza os registros dos dois \textit{gateways} e as capturas realizadas durante a execução.
+A avaliação física examinou o estabelecimento de uma conexão QUIC sobre ICE e a transferência de dados de uma aplicação TCP entre computadores conectados por roteadores NAT físicos. O objetivo foi verificar, nesse ambiente, a sequência funcional exercitada pelo caso C10 no \texttt{PatchBay}: descoberta de \textit{endpoints}, seleção de um caminho direto, estabelecimento QUIC e entrega dos dados ao serviço remoto. A análise utiliza os registros dos dois \textit{gateways} e as capturas realizadas durante a execução.
 
-Os roteadores da DATACOM utilizados na avaliação apresentam mapeamento independente do destino (EIM), conforme os testes realizados durante o projeto com a empresa. Esse comportamento, também presente no perfil \textit{Moderate} do PatchBay, permite que o \textit{endpoint} público descoberto via STUN seja reutilizado na comunicação com o outro \textit{gateway}, o que viabiliza o \textit{hole punching}. O comportamento de filtragem desses roteadores não foi caracterizado.
+Os roteadores da DATACOM utilizados na avaliação apresentam mapeamento independente do destino (EIM), conforme os testes realizados durante o projeto com a empresa. Esse comportamento, também presente no perfil \textit{Moderate} do \texttt{PatchBay}, permite que o \textit{endpoint} público descoberto via STUN seja reutilizado na comunicação com o outro \textit{gateway}, o que viabiliza o \textit{hole punching}. O comportamento de filtragem desses roteadores não foi caracterizado.
 
 \subsection{Configuração e Identificação da Execução}
 
 A montagem segue a Seção~\ref{sec:physical_infrastructure}, com os dois \textit{gateways} em LANs distintas e os serviços auxiliares acessíveis pela rede do roteador base. O \textit{namespace} do \textit{gateway} A separa sua interface Ethernet da interface utilizada pelo servidor, de modo que o acesso aos serviços auxiliares percorra o roteador A. O \textit{gateway} B executa em outro computador, conectado ao roteador B.
 
-O experimento utiliza o mesmo padrão de envio de 16384 \textit{bytes} dos testes de tunelamento TCP no PatchBay. Uma aplicação local no \textit{gateway} A envia os dados à entrada do túnel, e, no \textit{gateway} B, o serviço TCP de \textit{echo} devolve o conteúdo recebido. Assim, a comparação mantém o critério de integridade dos dados, embora a infraestrutura de encaminhamento seja diferente.
+O experimento utiliza o mesmo padrão de envio de 16384 \textit{bytes} dos testes de tunelamento TCP no \texttt{PatchBay}. Uma aplicação local no \textit{gateway} A envia os dados à entrada do túnel, e, no \textit{gateway} B, o serviço TCP de \textit{echo} devolve o conteúdo recebido. Assim, a comparação mantém o critério de integridade dos dados, embora a infraestrutura de encaminhamento seja diferente.
 
 A Tabela~\ref{tab:physical_selected_endpoints} apresenta os endereços locais e os \textit{endpoints} \textit{server reflexive} selecionados durante a execução.
 
@@ -411,7 +411,7 @@ Esses \textit{endpoints} pertencem à rede externa às LANs dos \textit{gateways
 
 \subsection{Estabelecimento do Caminho e Transferência de Dados}
 
-Nos \textit{logs} da Listagem~\ref{lst:gateways_log1}, o \textit{gateway} A registra o estado ICE \texttt{READY} com o par \texttt{10.0.0.117:35538} \(\rightarrow\) \texttt{10.0.0.40:52875}, e o \textit{gateway} B registra os mesmos \textit{endpoints} em ordem inversa. Ambos identificam o caminho como direto, com candidatos \textit{server reflexive}. Esses registros demonstram que o ICE selecionou o caminho a partir dos \textit{endpoints} externos aos dois NATs. Os registros seguintes mostram a associação do BIO \texttt{udp\_transport} à OpenSSL (Seção~\ref{sec:openssl_bio}) e o estabelecimento da conexão e dos \textit{streams} QUIC.
+Nos \textit{logs} da Listagem~\ref{lst:gateways_log1}, o \textit{gateway} A registra o estado ICE \texttt{READY} com o par \texttt{10.0.0.117:35538} \(\rightarrow\) \texttt{10.0.0.40:52875}, e o \textit{gateway} B registra os mesmos \textit{endpoints} em ordem inversa. Ambos identificam o caminho como direto, com candidatos \textit{server reflexive}. Esses registros demonstram que o ICE selecionou o caminho a partir dos \textit{endpoints} externos aos dois NATs. Os registros seguintes mostram a associação do BIO \texttt{udp\_transport} à \texttt{OpenSSL} (Seção~\ref{sec:openssl_bio}) e o estabelecimento da conexão e dos \textit{streams} QUIC.
 
 \begin{lstlisting}[caption={\textit{Logs} dos \textit{gateways} A e B}, label={lst:gateways_log1}]
 Peer A ICE READY: 10.0.0.117:35538 -> 10.0.0.40:52875; direto/reflexivo.
@@ -448,9 +448,9 @@ Após o estabelecimento do QUIC, os dois \textit{gateways} registraram 16384 \te
 
 \subsection{Comparação com o Ambiente PatchBay e Alcance dos Resultados}
 
-Os resultados físicos mostram que o funcionamento observado no caso direto C10 do PatchBay (Seção~\ref{sec:functional_establishment}) também foi obtido com tradução e encaminhamento realizados por equipamentos externos. A mesma implementação integrou a negociação ICE, o transporte QUIC e as aplicações TCP locais nesse arranjo.
+Os resultados físicos mostram que o funcionamento observado no caso direto C10 do \texttt{PatchBay} (Seção~\ref{sec:functional_establishment}) também foi obtido com tradução e encaminhamento realizados por equipamentos externos. A mesma implementação integrou a negociação ICE, o transporte QUIC e as aplicações TCP locais nesse arranjo.
 
-O alcance dessa observação se restringe à topologia e aos equipamentos utilizados. A coleta física analisada não exercita TURN obrigatório, sessão prolongada, perdas induzidas nem mudança de rede. Ela também não caracteriza sistematicamente o comportamento dos NATs nem estabelece diferenças de latência ou vazão em relação ao PatchBay. Esses aspectos exigiriam procedimentos e medições específicos, que ultrapassam o escopo deste trabalho.
+O alcance dessa observação se restringe à topologia e aos equipamentos utilizados. A coleta física analisada não exercita TURN obrigatório, sessão prolongada, perdas induzidas nem mudança de rede. Ela também não caracteriza sistematicamente o comportamento dos NATs nem estabelece diferenças de latência ou vazão em relação ao \texttt{PatchBay}. Esses aspectos exigiriam procedimentos e medições específicos, que ultrapassam o escopo deste trabalho.
 
 \section{Análise Comparativa das Abordagens de Comunicação}
 \label{sec:another_connection_approaches}

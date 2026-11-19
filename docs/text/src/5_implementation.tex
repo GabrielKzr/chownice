@@ -9,13 +9,15 @@ Inicialmente, o objetivo era transmitir dados TCP, especificamente HTTP, por mei
 
 Para a comunicação, o projeto propôs um servidor mínimo (\textit{rendezvous server}), responsável pela autenticação e pela troca de endereços IP entre os \textit{peers}, com função semelhante à de um servidor STUN na descoberta de endereços. O projeto também propôs um protocolo capaz de atender aos requisitos de dependabilidade e segurança descritos na introdução deste trabalho. O protocolo escolhido foi o QUIC, devido à sua adoção crescente e à sua compatibilidade com os requisitos de transmissão de dados de aplicação do projeto.
 
-O projeto implementou apenas parcialmente a infraestrutura de servidores e avançou pouco na comunicação QUIC entre dois \textit{peers}. Este trabalho também estende o trabalho de \citet{paladin2025quic}, que abordou os aspectos de segurança e as razões para a escolha do QUIC nos cenários propostos.
+O projeto implementou apenas parcialmente a infraestrutura de servidores e avançou pouco na comunicação QUIC entre dois \textit{peers}. Este trabalho também estende o trabalho de \citep{paladin2025quic}, que abordou os aspectos de segurança e as razões para a escolha do QUIC nos cenários propostos.
 
 A implementação descrita neste capítulo executa nos \textit{gateways} da arquitetura proposta, que realizam a comunicação externa e executam as aplicações integradas ao túnel. O objetivo é interligar essas aplicações quando os \textit{gateways} se encontram em redes distintas, por meio dos mecanismos de descoberta e seleção de caminhos da solução. Os dispositivos IoT, como sensores e atuadores, não participam da negociação de conectividade, e a obtenção e o encaminhamento de seus dados cabem à aplicação do \textit{gateway}. Nos experimentos, aplicações locais de geração e recepção de mensagens representam esses dados. Nos ambientes de teste, os \textit{gateways} correspondem a \textit{hosts} de propósito geral, e os roteadores da topologia realizam o encaminhamento de pacotes e, quando configurados para isso, a tradução de endereços (NAT). A implementação não é executada nesses roteadores. Este trabalho também não estabelece requisitos mínimos de execução nem caracteriza o consumo das bibliotecas utilizadas em dispositivos IoT com recursos limitados.
 
 A Figura~\ref{fig:chapter_structure} apresenta a organização do capítulo. À esquerda, a figura mostra as camadas da implementação executada nos \textit{gateways}. À direita, mostra os ambientes utilizados na avaliação. Cada bloco indica a seção que o descreve.
 
-A Seção~\ref{sec:hole_punching_protocols} apresenta a tradução e a extensão do protocolo Chownat (Seção~\ref{sec:chownat}), a interface genérica de \textit{hole punching} (\texttt{udp\_conn}) derivada desse protocolo e a implementação QUIC baseada na biblioteca \texttt{OpenSSL}. A Seção~\ref{sec:ice_library} generaliza a solução com o ICE. Nessa etapa, a interface \texttt{udp\_transport} abstrai o \textit{socket} UDP, e a biblioteca \texttt{libnice} assume a obtenção de candidatos, o \textit{hole punching} e o gerenciamento dos \textit{sockets}, tanto para protocolos genéricos, como o Chownat, quanto para a OpenSSL. Por fim, a Seção~\ref{sec:topologies} apresenta as topologias de teste, e a Seção~\ref{sec:simulation_environments} descreve os ambientes experimentais, compostos por dois ambientes de simulação e uma infraestrutura física.
+A Seção~\ref{sec:hole_punching_protocols} apresenta a tradução e a extensão do protocolo Chownat (Seção~\ref{sec:chownat}), a interface genérica de \textit{hole punching} (\texttt{udp\_conn}) derivada desse protocolo e a implementação QUIC baseada na biblioteca \texttt{OpenSSL}. A Seção~\ref{sec:ice_library} generaliza a solução com o ICE. Nessa etapa, a interface \texttt{udp\_transport} abstrai o \textit{socket} UDP, e a biblioteca \texttt{libnice} assume a obtenção de candidatos, o \textit{hole punching} e o gerenciamento dos \textit{sockets}, tanto para protocolos genéricos, como o Chownat, quanto para a \texttt{OpenSSL}. Por fim, a Seção~\ref{sec:topologies} apresenta as topologias de teste, e a Seção~\ref{sec:simulation_environments} descreve os ambientes experimentais, compostos por dois ambientes de simulação e uma infraestrutura física.
+
+O código-fonte da implementação e os arquivos utilizados nos experimentos estão disponíveis no repositório do projeto \citep{menezes2026chownice}.
 
 \begin{figure}[ht]
 \centering
@@ -32,7 +34,7 @@ Esta seção apresenta as implementações e extensões desenvolvidas para viabi
 \begin{itemize}
     \item a Seção~\ref{sec:chownat_translation_extension} apresenta a tradução e a extensão do Chownat, iniciadas durante o projeto com a DATACOM;
     \item a Seção~\ref{sec:hole_punching_interface} apresenta a interface de transporte genérica para \textit{hole punching}, derivada do Chownat;
-    \item a Seção~\ref{sec:ossl_quic_for_hole_punching} apresenta uma proposta de uso da biblioteca OpenSSL no modo \textit{threadless} para \textit{hole punching}.
+    \item a Seção~\ref{sec:ossl_quic_for_hole_punching} apresenta uma proposta de uso da biblioteca \texttt{OpenSSL} no modo \textit{threadless} para \textit{hole punching}.
 \end{itemize}
 
 \subsection{Tradução e Extensão do Protocolo Chownat}
@@ -55,7 +57,7 @@ Como a interface genérica, apresentada na Seção~\ref{sec:hole_punching_interf
     \item \textbf{Conexão suporta apenas o envio de 256 pacotes:} o identificador de pacote ocupa um único byte e, portanto, assume valores entre 0 e $2^8-1$. Optou-se por manter o cabeçalho do Chownat (Seção~\ref{sec:chownat_protocol}) e reiniciar a contagem ao atingir o limite. Perdas de mais de 256 pacotes consecutivos ainda geram comportamento indefinido, mas essa solução foi preferida à extensão do campo para 2 bytes, pois preserva o formato original do pacote;
     \item \textbf{Apenas permite comunicação de dados TCP:} o Chownat funciona apenas com tunelamento TCP e não permite o envio nativo de dados UDP. Com a interface genérica, o tunelamento TCP passou a ser opcional por conexão, e a aplicação pode enviar dados nativamente, sem depender de uma conexão TCP externa;
     \item \textbf{Permite apenas uma conexão por aplicação:} ao finalizar a única conexão TCP suportada, o protocolo original entrava em \textit{loop} infinito. A solução consistiu em implementar um \textit{3-way handshake} de desconexão, com número máximo de tentativas configurável por conexão. Assim, ao finalizar uma conexão TCP, a conexão Chownat também é finalizada, e uma nova conexão pode ser inicializada;
-    \item \textbf{Hole punching exige tradução de porta com ``mapeamento espelhado'':} o \textit{hole punching} do Chownat depende de o NAT preservar a porta de origem, isto é, mapear o tráfego para a mesma porta à qual o \textit{socket} remetente está vinculado. Alguns NATs apresentam esse comportamento, como o NAT simulado pelo PatchBay \citep{patchbay} no modo \textit{Moderate}, mas trata-se de um caso particular, e não de uma regra geral entre implementações de NAT. A integração da biblioteca ICE, descrita na Seção~\ref{sec:ice_library}, resolveu posteriormente esse problema;
+    \item \textbf{Hole punching exige tradução de porta com ``mapeamento espelhado'':} o \textit{hole punching} do Chownat depende de o NAT preservar a porta de origem, isto é, mapear o tráfego para a mesma porta à qual o \textit{socket} remetente está vinculado. Alguns NATs apresentam esse comportamento, como o NAT simulado pelo \texttt{PatchBay} \citep{patchbay} no modo \textit{Moderate}, mas trata-se de um caso particular, e não de uma regra geral entre implementações de NAT. A integração da biblioteca ICE, descrita na Seção~\ref{sec:ice_library}, resolveu posteriormente esse problema;
     \item \textbf{Sem garantias de dependabilidade:} o protocolo não oferece garantias de confiabilidade, integridade, autenticidade ou segurança. Essa limitação não foi resolvida, pois o objetivo final é o uso do QUIC, que oferece nativamente entrega confiável e proteção criptográfica. Manteve-se, portanto, a simplicidade do Chownat para fins exclusivos de teste.
 \end{itemize}
 
@@ -182,7 +184,7 @@ Assim como no Chownat (Seção~\ref{sec:chownat}), esta etapa inicializa o \text
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.8\textwidth]{fig/implementation/ossl_quic/ossl_quic_configuration_time_diagram.png}
-    \caption{Diagrama de tempo da configuração do QUIC da OpenSSL sobre a interface.}
+    \caption{Diagrama de tempo da configuração do QUIC da \texttt{OpenSSL} sobre a interface.}
     \label{fig:ossl_quic_configuration}
 \end{figure}
 
@@ -359,16 +361,16 @@ Os \textit{Linux Network Namespaces} \citep{linux-network-namespaces} permitem c
     \label{fig:namespaces_isolation}
 \end{figure}
 
-Entretanto, a configuração nativa desses \textit{namespaces} utiliza o comando \texttt{ip}, cuja utilização não é trivial devido ao grande número de opções. Por exemplo, a configuração de um NAT exige, além das interfaces virtuais, regras definidas com o programa \texttt{iptables}. Além disso, a documentação é extensa e não há perfis pré-configurados para tipos específicos de NAT, como o NAT com EIM ou o NAT com ``mapeamento espelhado''. Por isso, este trabalho utiliza a biblioteca \texttt{PatchBay} \citep{patchbay}, desenvolvida em Rust, que configura o ambiente completo a partir de perfis previamente definidos. Esse recurso facilita os testes e garante o comportamento esperado de cada configuração. Assim, o PatchBay serve de base para as configurações de rede dos \textit{Linux Network Namespaces}.
+Entretanto, a configuração nativa desses \textit{namespaces} utiliza o comando \texttt{ip}, cuja utilização não é trivial devido ao grande número de opções. Por exemplo, a configuração de um NAT exige, além das interfaces virtuais, regras definidas com o programa \texttt{iptables}. Além disso, a documentação é extensa e não há perfis pré-configurados para tipos específicos de NAT, como o NAT com EIM ou o NAT com ``mapeamento espelhado''. Por isso, este trabalho utiliza a biblioteca \texttt{PatchBay} \citep{patchbay}, desenvolvida em Rust, que configura o ambiente completo a partir de perfis previamente definidos. Esse recurso facilita os testes e garante o comportamento esperado de cada configuração. Assim, o \texttt{PatchBay} serve de base para as configurações de rede dos \textit{Linux Network Namespaces}.
 
 Como os \textit{namespaces} compartilham os recursos da mesma máquina, os resultados de desempenho não refletem enlaces físicos e devem ser interpretados sob essa condição. Os testes nesse ambiente permitem controlar as condições de rede e verificar o funcionamento da integração. A avaliação em \textit{hosts} separados constitui outro ambiente experimental (Seção~\ref{sec:physical_infrastructure}).
 
 \subsubsection{Topologia para Hole Punching Direto Utilizando Linux Network Namespaces}
 \label{sec:basic_topology_network_namespaces}
 
-A topologia com \textit{Linux Network Namespaces} é semelhante à da Figura~\ref{fig:basic_topology_gns3}. A diferença é que o PatchBay não permite definir manualmente o IP de WAN dos roteadores NAT. Em vez disso, cada roteador recebe um endereço fornecido pelo ISP (Listagem~\ref{lst:patchbay_isp_config}), que neste caso pertence à mesma rede \texttt{10.0.0.0/24}. Cada roteador também atribui endereços IP à sua rede local (LAN) e configura um NAT do tipo \textit{Moderate}.
+A topologia com \textit{Linux Network Namespaces} é semelhante à da Figura~\ref{fig:basic_topology_gns3}. A diferença é que o \texttt{PatchBay} não permite definir manualmente o IP de WAN dos roteadores NAT. Em vez disso, cada roteador recebe um endereço fornecido pelo ISP (Listagem~\ref{lst:patchbay_isp_config}), que neste caso pertence à mesma rede \texttt{10.0.0.0/24}. Cada roteador também atribui endereços IP à sua rede local (LAN) e configura um NAT do tipo \textit{Moderate}.
 
-\begin{lstlisting}[float=htbp, caption={Configuração do ISP no PatchBay.}, label={lst:patchbay_isp_config}]
+\begin{lstlisting}[float=htbp, caption={Configuração do ISP no \texttt{PatchBay}.}, label={lst:patchbay_isp_config}]
     let isp = lab
         .add_router("isp")
         .preset(RouterPreset::Public)
@@ -377,7 +379,7 @@ A topologia com \textit{Linux Network Namespaces} é semelhante à da Figura~\re
         .await?;
 \end{lstlisting}
 
-O PatchBay \citep{patchbay} fornece quatro tipos de NAT para IPv4, além de um modo customizável (\textit{Custom}), de variações para IPv6 e de \textit{firewalls}:
+O \texttt{PatchBay} \citep{patchbay} fornece quatro tipos de NAT para IPv4, além de um modo customizável (\textit{Custom}), de variações para IPv6 e de \textit{firewalls}:
 
 \begin{itemize}
     \item \textbf{None:} roteador sem NAT, ou seja, sem tradução de endereços;
@@ -388,7 +390,7 @@ O PatchBay \citep{patchbay} fornece quatro tipos de NAT para IPv4, além de um m
 
 Os roteadores dos \textit{peers} utilizam o modo \textit{Moderate} (Listagem~\ref{lst:patchbay_client_config}), com alterações em algumas regras de mapeamento para manter o ``mapeamento espelhado''. Assim, a porta traduzida corresponde, por padrão, à porta de origem do \textit{socket}, definida na operação de \textit{bind}. As LANs dos dois roteadores utilizam o mesmo prefixo da Figura~\ref{fig:basic_topology_gns3}, \texttt{192.168.80.0/24}.
 
-\begin{lstlisting}[float=htbp, caption={Configuração de roteadores no PatchBay.}, label={lst:patchbay_client_config}]
+\begin{lstlisting}[float=htbp, caption={Configuração de roteadores no \texttt{PatchBay}.}, label={lst:patchbay_client_config}]
     let router_a = lab
         .add_router("router_a")
         .preset(RouterPreset::Home)

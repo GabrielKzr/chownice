@@ -22,7 +22,7 @@
 \node[proto, minimum width=38mm, below=4mm of udpconn.south west, anchor=north west] (chownat)
   {Chownat traduzido\\[-1pt]\scriptsize e estendido\figsr{sec:chownat_translation_extension}};
 \node[proto, minimum width=38mm, below=4mm of udpconn.south east, anchor=north east] (ossl)
-  {\texttt{ossl\_quic}\\[-1pt]\scriptsize QUIC da OpenSSL\figsr{sec:ossl_quic_for_hole_punching}};
+  {\texttt{ossl\_quic}\\[-1pt]\scriptsize QUIC da \texttt{OpenSSL}\figsr{sec:ossl_quic_for_hole_punching}};
 \node[proto, minimum width=38mm, below=4mm of ossl, fill=green!5] (bio)
   {BIO personalizado\figsr{sec:openssl_bio}};
 \node[trans, minimum width=80mm, below=4mm of bio.south east, anchor=north east] (udptr)
@@ -56,7 +56,7 @@
 \node[env, minimum width=55mm, anchor=north west] (gns3) at ($(tdir.south west)+(0,-9mm)$)
   {GNS3\\[-1pt]\scriptsize uso inicial, sem resultados\figsr{sec:gns3}};
 \node[env, minimum width=55mm, below=3mm of gns3] (ns)
-  {\textit{Linux Network Namespaces}\\[-1pt]\scriptsize com PatchBay\figsr{sec:linux_network_namespaces}};
+  {\textit{Linux Network Namespaces}\\[-1pt]\scriptsize com \texttt{PatchBay}\figsr{sec:linux_network_namespaces}};
 \node[env, minimum width=55mm, below=3mm of ns] (phy)
   {Infraestrutura física (DATACOM)\figsr{sec:physical_infrastructure}};
 \node[font=\sffamily\scriptsize\bfseries, anchor=south] at (gns3.north) {Ambientes (Seção~\ref{sec:simulation_environments})};
