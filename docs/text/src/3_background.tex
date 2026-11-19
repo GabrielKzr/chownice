@@ -1,7 +1,11 @@
 \chapter{Protocolos de comunicação}
 \label{chap:background}
 
-Este capítulo apresenta os conceitos e os protocolos de comunicação que fundamentam a solução proposta neste trabalho, a qual implementa o QUIC sobre uma infraestrutura baseada em WebRTC. O capítulo está organizado da seguinte forma: \cfm{tive que organizar uma introdução}
+Este capítulo apresenta os conceitos e os protocolos de comunicação que fundamentam a solução proposta neste trabalho, a qual combina o ICE e o QUIC na comunicação entre \textit{gateways}. O capítulo está organizado da seguinte forma: 
+
+\begin{comment}
+\cfm{tive que organizar uma introdução}
+\end{comment}
 
 \begin{itemize}
 
@@ -16,7 +20,10 @@ Este capítulo apresenta os conceitos e os protocolos de comunicação que funda
 \item A Seção \ref{sec:ice} apresenta o protocolo ICE e os servidores STUN e TURN empregados na descoberta e seleção de candidatos de comunicação.
 
 \item A Seção \ref{sec:chownat} detalha a arquitetura e o protocolo Chownat, incluindo os tipos de pacotes e as etapas de conexão e comunicação.
+
+\begin{comment}
 \item A Seção \ref{sec:webrtc} descreve a arquitetura e o protocolo WebRTC, abrangendo sinalização, estabelecimento de conexão, segurança e a API (\textit{Application Programming Interface}).
+\end{comment}
 
 % \item A Seção \ref{sec:quic} apresenta o protocolo QUIC, sua motivação em relação ao TCP e seu uso em aplicações P2P, incluindo cenários de tempo real e IoT.
 
@@ -41,18 +48,9 @@ Para compreender a relação entre os protocolos abordados neste trabalho, é ne
 
 Este trabalho concentra-se nas camadas de rede e de transporte, correspondentes às camadas 3 e 4 do modelo OSI. A camada de rede é responsável pelo endereçamento e pelo encaminhamento de pacotes entre diferentes redes, enquanto a camada de transporte é responsável pela comunicação fim a fim entre os \textit{peers}. Na arquitetura TCP/IP, essas funções correspondem, respectivamente, às camadas de Internet (\textit{Internet layer}) e de transporte (\textit{transport layer}) \citep{rfc1122}.
 
-Este trabalho utiliza uma infraestrutura baseada em WebRTC, descrita na Seção~\ref{sec:webrtc}. Nessa infraestrutura, a comunicação entre os \textit{peers} depende dos mecanismos de travessia de NAT, descritos na Seção~\ref{sec:nat_traversal}, e do protocolo ICE, apresentado na Seção~\ref{sec:ice}, que realiza a descoberta e a seleção de candidatos de conexão. Sobre essa infraestrutura, o QUIC, descrito no Capítulo~\ref{chap:quic}, atua como protocolo de transporte e encapsula a comunicação TCP entre os \textit{peers}.
+Na solução proposta, a comunicação entre os \textit{peers} depende dos mecanismos de travessia de NAT (Seção~\ref{sec:nat_traversal}) e do protocolo ICE (Seção~\ref{sec:ice}), que descobre e seleciona os candidatos de conexão. Sobre o caminho selecionado, o QUIC (Capítulo~\ref{chap:quic}) atua como protocolo de transporte e carrega os dados das aplicações TCP locais entre os \textit{peers}. A organização dessas etapas segue a referência arquitetural do WebRTC, descrita na Seção~\ref{sec:webrtc}.
 
-A arquitetura considerada neste trabalho é composta por dois \textit{peers} e por servidores auxiliares empregados pelos mecanismos de travessia de NAT. Cada \textit{peer} é um \textit{gateway} associado a um dispositivo IoT ou a uma aplicação consumidora dos dados gerados por esse dispositivo, representados na figura como \textit{device1} e \textit{device2}. Essa aplicação pode ser executada em um sistema de propósito geral ou em outro dispositivo IoT. Os \textit{gateways} executam a infraestrutura proposta e são distintos dos roteadores de acesso, responsáveis pelo encaminhamento dos pacotes e pela tradução de endereços nas redes representadas. As aplicações locais assumem os papéis de cliente e servidor, enquanto os \textit{gateways} viabilizam a comunicação entre elas.
-
-A Figura~\ref{fig:quic_p2p_architecture} apresenta a arquitetura de comunicação proposta neste trabalho, com seus principais elementos e as relações entre eles. Este capítulo descreve os fundamentos teóricos das operações realizadas entre os \textit{peers}, os servidores e os demais elementos da arquitetura, e o Capítulo~\ref{chap:implementation} apresenta a implementação prática dessas operações.
-
-\begin{figure}[!ht]
-        \centering
-        \includegraphics[width=1.0\linewidth]{fig/relationship/architecture_for_quic_p2p.png}
-        \caption{Arquitetura para comunicação P2P com QUIC.}
-        \label{fig:quic_p2p_architecture}
-\end{figure}
+A arquitetura considerada neste trabalho, apresentada na Figura~\ref{fig:quic_p2p_architecture} da Introdução, é composta por dois \textit{gateways} e por servidores auxiliares. Este capítulo descreve os fundamentos teóricos das operações realizadas entre os \textit{peers}, os servidores e os demais elementos da arquitetura, e o Capítulo~\ref{chap:implementation} apresenta a implementação prática dessas operações.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -166,9 +164,7 @@ DuBois e Ivov \citep{WebRTCForTheCurious} organizam o funcionamento do WebRTC em
     \item \textbf{Comunicação (\textit{communicating}):} transmissão dos dados das aplicações pelo caminho estabelecido, utilizando os mecanismos de proteção negociados.
 \end{itemize}
 
-Essa divisão permite distinguir as responsabilidades envolvidas na comunicação, sem exigir que cada etapa corresponda a um componente isolado. A sinalização viabiliza a troca inicial de informações, a conexão determina o caminho disponível e os mecanismos de segurança e transporte permitem a comunicação protegida entre os participantes.
-
-Neste trabalho, o WebRTC serve como referência arquitetural para a organização dessas responsabilidades, especialmente nas etapas de sinalização e estabelecimento de conectividade entre os \textit{gateways}. A solução utiliza ICE, descrito na Seção~\ref{sec:ice}, para descobrir e selecionar os caminhos de comunicação, e QUIC, apresentado no Capítulo~\ref{chap:quic}, para transportar os dados das aplicações TCP locais e integrar os mecanismos de segurança ao estabelecimento da conexão. A proposta não utiliza a pilha completa ou a API de navegador do WebRTC.
+Neste trabalho, o WebRTC serve apenas como referência arquitetural. A solução não utiliza a pilha WebRTC nem sua API de navegador, mas reproduz a mesma divisão de responsabilidades com componentes próprios. A sinalização ocorre por meio de um servidor TCP simples (Seção~\ref{sec:ice_topology_network_namespaces}). A conexão utiliza o ICE com os serviços STUN e TURN (Seção~\ref{sec:ice}). A segurança e a comunicação ficam a cargo do QUIC (Capítulo~\ref{chap:quic}), que integra o TLS~1.3 ao estabelecimento da conexão. No WebRTC, essas duas últimas etapas utilizam o DTLS, que também estabelece as chaves do SRTP para a mídia, e o SCTP sobre DTLS para os dados.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -176,7 +172,7 @@ Neste trabalho, o WebRTC serve como referência arquitetural para a organizaçã
 \section{Network Address Translator (NAT)}
 \label{sec:network_address_translator}
 
-O NAT é um mecanismo que traduz endereços IP entre diferentes domínios de endereçamento, como uma rede local (LAN, do inglês \textit{Local Area Network}) e uma rede de longa distância (WAN, do inglês \textit{Wide Area Network}), de forma transparente aos dispositivos finais. Conforme descrito no RFC~1631 \citep{RFC1631}, sua adoção foi motivada pelo esgotamento dos endereços IPv4 e pelos problemas de escalabilidade do roteamento, decorrentes do crescimento das tabelas de rotas e dos recursos necessários para mantê-las.
+O NAT é um mecanismo que traduz endereços IP entre diferentes domínios de endereçamento, como uma rede local (LAN, do inglês \textit{Local Area Network}) e uma rede de longa distância (WAN, do inglês \textit{Wide Area Network}), de forma transparente aos dispositivos finais. Conforme descrito no RFC~1631 \citep{RFC1631}, sua adoção foi motivada pelo esgotamento dos endereços IPv4 e pelos problemas de escalabilidade do roteamento, decorrentes do crescimento das tabelas de roteamento e dos recursos necessários para mantê-las.
 
 \begin{comment}
     
@@ -365,7 +361,7 @@ A sobreposição de endereços privados e sua ausência de roteabilidade global 
 
 A adoção do IPv6 não elimina todas essas dificuldades. Existem mecanismos de tradução entre IPv4 e IPv6, como NAT64 e 464XLAT \citep{rfc6146, rfc6877}, e entre domínios IPv6, como NPTv6 \citep{rfc6296}. Mesmo na ausência de tradução, a filtragem por \textit{firewalls} também restringir a comunicação P2P \citep{rfc5128}.
 
-As técnicas de travessia de NAT procuram viabilizar essa comunicação. Em 380 relatos abrangendo NATs de 68 fabricantes, Ford et al. \citep{ford2005peer} observaram suporte a \textit{hole punching} em 82\% dos casos testados com UDP e 64\% com TCP. O RFC~5128 \citep{rfc5128} consolidou essas técnicas, discutidas nas seções seguintes. Na arquitetura proposta, elas permitem estabelecer a comunicação externa entre gateways situados em redes privadas distintas, sem exigir um endereço público diretamente atribuído a cada host.
+As técnicas de travessia de NAT procuram viabilizar essa comunicação. Em 380 relatos abrangendo NATs de 68 fabricantes, Ford et al. \citep{ford2005peer} observaram suporte a \textit{hole punching} em 82\% dos casos testados com UDP e 64\% com TCP. O RFC~5128 \citep{rfc5128} consolidou essas técnicas, discutidas nas seções seguintes. Na arquitetura proposta, elas permitem estabelecer a comunicação externa entre \textit{gateways} situados em redes privadas distintas, sem exigir um endereço público diretamente atribuído a cada \textit{host}.
 
 \begin{comment}
     
@@ -465,9 +461,9 @@ As técnicas de \textit{hole punching} descritas nesta seção dependem de NATs 
 
 \subsubsection{UDP Hole Punching Sob o Mesmo NAT}
 
-Quando dois \textit{peers} estão na mesma rede privada, mas desconhecem essa condição, eles podem tentar comunicar-se pelos endereços externos obtidos por meio do servidor auxiliar. Esse caminho exige suporte a \textit{hairpinning}, isto é, a capacidade do NAT de encaminhar ao participante interno os pacotes destinados ao seu endereço e à sua porta externos \citep{ford2005peer}.
+Quando dois \textit{peers} estão na mesma rede privada, mas desconhecem essa condição, eles podem tentar comunicar-se pelos endereços externos obtidos por meio do servidor auxiliar. Esse caminho exige suporte a \textit{hairpinning}, isto é, a capacidade do NAT de encaminhar ao participante interno os pacotes destinados ao seu endereço e à sua porta externos.
 
-Como alternativa, os participantes podem trocar tanto seus endereços locais quanto os externos e testar ambos, conforme a Figura~\ref{fig:udp_hole_punching_same_nat}. Se os endereços locais forem acessíveis entre si, a comunicação ocorre diretamente pela rede privada, sem depender de \textit{hairpinning} \citep{ford2005peer}.
+Como alternativa, os participantes podem trocar tanto seus endereços locais quanto os externos e testar ambos, conforme a Figura~\ref{fig:udp_hole_punching_same_nat}. Se os endereços locais forem acessíveis entre si, a comunicação ocorre diretamente pela rede privada, sem depender de \textit{hairpinning}.
 
 \begin{figure}[!ht]
         \centering
@@ -698,9 +694,9 @@ Os clientes solicitam alocações ao servidor TURN por meio de uma requisição 
 
 Para garantir a segurança e impedir o uso do TURN para contornar (\textit{bypass}) \textit{firewalls}, o servidor implementa o conceito de permissões: antes de aceitar tráfego de um \textit{peer} específico endereçado ao \textit{relayed transport address} do cliente, o servidor exige que o cliente tenha instalado explicitamente uma permissão para esse \textit{peer}. Esse conceito é análogo ao comportamento de filtragem dos NATs (Seção~\ref{sec:nat_classification_by_translation_behavior}). Cada permissão funciona como uma concessão temporária (\textit{lease}) e expira após 5 minutos caso o cliente não a renove.
 
-O TURN oferece dois mecanismos para transportar dados entre cliente e servidor. As mensagens \textit{Send Indication} e \textit{Data Indication} utilizam o formato STUN e transportam dados, respectivamente, do cliente ao servidor e do servidor ao cliente. Como alternativa, o cliente pode enviar uma requisição \texttt{ChannelBind}, associando um número de canal ao endereço de transporte do participante remoto \citep{rfc8656}.
+O TURN oferece dois mecanismos para transportar dados entre cliente e servidor. As mensagens \texttt{Send Indication} e \texttt{Data Indication} utilizam o formato STUN e transportam dados, respectivamente, do cliente ao servidor e do servidor ao cliente. Como alternativa, o cliente pode enviar uma requisição \texttt{ChannelBind}, associando um número de canal ao endereço de transporte do participante remoto \citep{rfc8656}.
 
-Após essa associação, ambos os sentidos podem utilizar mensagens \textit{ChannelData}, cujo cabeçalho de quatro bytes contém o número do canal e o tamanho dos dados, reduzindo a sobrecarga em relação às \textit{indications}. A associação tem validade de dez minutos e precisa ser renovada para continuar em uso \citep{rfc8656}.
+Após essa associação, ambos os sentidos podem utilizar mensagens \texttt{ChannelData}, cujo cabeçalho de quatro bytes contém o número do canal e o tamanho dos dados, reduzindo a sobrecarga em relação às \textit{indications}. A associação tem validade de dez minutos e precisa ser renovada para continuar em uso \citep{rfc8656}.
 
 \subsection{Protocolo ICE}
 
@@ -746,7 +742,7 @@ Há ainda o \textit{Peer Reflexive Address}, que corresponde ao endereço do \te
 Cada candidato possui um atributo denominado \textit{base}, que representa o endereço a partir do qual o agente ICE (\textit{ICE agent}) efetivamente envia pacotes ao utilizar esse candidato. Para os candidatos \textit{host}, \textit{server-reflexive} e \textit{peer-reflexive}, a base corresponde ao \textit{local address}. Para o candidato \textit{relayed}, a base é o próprio candidato, isto é, o endereço alocado pelo servidor TURN, pois é o servidor, e não o \textit{host}, quem envia os pacotes a partir desse endereço.
 \end{comment}
 
-Após a coleta, os agentes trocam candidatos e credenciais ICE por um canal de sinalização, cujo funcionamento não é definido pelo protocolo. Cada agente combina os candidatos locais e remotos em pares, ordena-os por prioridade e realiza verificações de conectividade por meio de mensagens STUN \texttt{Binding}, conforme descrito na subseção seguinte.
+Após a coleta, os agentes trocam candidatos e credenciais ICE por um canal de sinalização, cujo funcionamento não é definido pelo protocolo. Cada agente combina os candidatos locais e remotos em pares, ordena-os por prioridade e realiza verificações de conectividade por meio de mensagens \texttt{STUN Binding}, conforme descrito na subseção seguinte.
 \begin{comment}
     
 Após a descoberta dos candidatos, o agente ICE os ordena por prioridade e os troca com o outro \textit{peer} por meio de um servidor de sinalização. A prioridade de cada candidato resulta de uma fórmula em que cada tipo de candidato possui um peso específico. O ICE não define o servidor de sinalização, que pode ser qualquer canal confiável entre os \textit{peers}. De posse dos candidatos de ambos os lados, o agente ICE forma pares de candidatos (\textit{candidate pairs}) e inicia as verificações de conectividade por meio de mensagens STUN \texttt{Binding} (\textit{request} e \textit{response}).
@@ -762,9 +758,9 @@ O algoritmo do ICE compreende as seguintes etapas, detalhadas a seguir:
 \subsubsection{Verificações de Conectividade do ICE}
 \label{sec:ice_connectivity_checks}
 
-Os agentes ICE verificam os pares de candidatos na ordem de prioridade da \textit{checklist}, utilizando requisições e respostas STUN \texttt{Binding} nos dois sentidos. Ao receber uma requisição, o agente também agenda uma verificação no sentido inverso (\textit{triggered check}), favorecendo a descoberta de conectividade bidirecional. Os pares verificados com sucesso integram a \textit{valid list}, da qual será selecionado um par por componente da comunicação \citep{rfc8445}.
+Os agentes ICE verificam os pares de candidatos na ordem de prioridade da \textit{checklist}, utilizando requisições e respostas \texttt{STUN Binding} nos dois sentidos. Ao receber uma requisição, o agente também agenda uma verificação no sentido inverso (\textit{triggered check}), favorecendo a descoberta de conectividade bidirecional. Os pares verificados com sucesso integram a \textit{valid list}, da qual será selecionado um par por componente da comunicação \citep{rfc8445}.
 
-Um participante assume o papel de agente controlador (\textit{controlling agent}) e o outro, de agente controlado (\textit{controlled agent}). O controlador nomeia um par válido por meio de uma requisição STUN \texttt{Binding} com o atributo \texttt{USE-CANDIDATE}; após a conclusão bem-sucedida da nomeação, o par pode ser selecionado para transportar os dados. A Figura~\ref{fig:4way_and_attribute} ilustra as verificações e a nomeação \citep{rfc8445}.
+Um participante assume o papel de agente controlador (\textit{controlling agent}) e o outro, de agente controlado (\textit{controlled agent}). O controlador nomeia um par válido por meio de uma requisição \texttt{STUN Binding} com o atributo \texttt{USE-CANDIDATE}; após a conclusão bem-sucedida da nomeação, o par pode ser selecionado para transportar os dados. A Figura~\ref{fig:4way_and_attribute} ilustra as verificações e a nomeação \citep{rfc8445}.
 
 \begin{figure}[!ht]
         \centering
@@ -825,7 +821,7 @@ O Chownat mantém dois \textit{sockets}: um UDP, responsável pelo \textit{hole 
         \label{fig:chownat_architecture}
 \end{figure}
 
-A comunicação UDP utiliza a mesma porta nos dois \textit{peers}, sendo 2222 o valor padrão. Como o Chownat original não possui descoberta de candidatos, o endereço IP público do participante remoto deve ser configurado previamente, e o NAT deve preservar a porta de origem na tradução. Neste trabalho, essa preservação é denominada informalmente ``mapeamento espelhado'', sem corresponder a uma classificação padronizada de NAT. A integração com ICE (Seção~\ref{sec:ice}) permite descobrir os endereços e as portas externos, eliminando a dependência de sua configuração prévia e da preservação da porta.
+A comunicação UDP utiliza a mesma porta nos dois \textit{peers}, sendo 2222 o valor padrão. Como o Chownat original não possui descoberta de candidatos, o endereço IP público do participante remoto deve ser configurado previamente, e o NAT deve preservar a porta de origem na tradução. Neste trabalho, essa preservação é denominada informalmente ``mapeamento espelhado'', sem corresponder a uma classificação padronizada de NAT. A integração com ICE (Seção~\ref{sec:ice}) permite descobrir os endereços e as portas externas, eliminando a dependência de sua configuração prévia e da preservação da porta.
 
 As conexões TCP são locais, vinculadas ao endereço \textit{localhost}. O cliente Chownat aceita a conexão da aplicação local, enquanto o servidor Chownat conecta-se ao serviço TCP de destino. Os dados recebidos de cada conexão local são encaminhados por UDP ao outro \textit{peer}, que os entrega à aplicação correspondente. Assim, apenas o conteúdo das aplicações atravessa o túnel, enquanto os segmentos de controle TCP permanecem locais.
 
@@ -857,7 +853,7 @@ Embora utilize técnicas associadas ao modelo P2P, o Chownat não adota necessar
 \subsection{Protocolo Chownat}
 \label{sec:chownat_protocol}
 
-O protocolo do Chownat é simples e recupera pacotes perdidos por meio de pacotes de controle, além de prover as operações básicas necessárias à comunicação. O protocolo também deve viabilizar o \textit{hole punching} sobre UDP. Dessa forma, ele se divide em duas etapas: a etapa de conexão e a etapa de comunicação. Antes de descrevê-las, esta seção apresenta o cabeçalho e os tipos de pacotes utilizados.
+O protocolo do Chownat é simples e recupera pacotes perdidos por meio de pacotes de controle, além de prover as operações básicas necessárias à comunicação. O protocolo também viabiliza o \textit{hole punching} sobre UDP. Dessa forma, ele se divide em duas etapas: a etapa de conexão e a etapa de comunicação. Antes de descrevê-las, esta seção apresenta o cabeçalho e os tipos de pacotes utilizados.
 
 \subsubsection{Tipos de Pacote do Chownat}
 

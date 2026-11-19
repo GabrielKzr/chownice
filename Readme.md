@@ -14,7 +14,7 @@ O objetivo e validar, em laboratorio, um caminho de comunicacao entre dois peers
 3. Evoluir para um protocolo QUIC-like, com foco em handshake, estados de conexao e streams.
 4. Integrar esse fluxo com o padrao de sinalizacao e negociacao esperado em cenarios WebRTC.
 
-Contexto técnico, estado validado e pendências: [docs/repository-context.md](docs/repository-context.md).
+Dependências e instruções de compilação: [docs/build-dependencies.md](docs/build-dependencies.md).
 
 ## Estrutura do repositorio
 
@@ -120,7 +120,24 @@ As bibliotecas atuais são `utils`, `udp_conn`, `chownat`, `ossl_quic`,
 `quic_like` e o agregador `protocols`. OpenSSL é requerido pelo CMake atual;
 `ENABLE_OSSLQUIC` e `quic_webrtc_lib` pertencem à configuração antiga.
 
-Para regressões de rede, veja [sim/patchbay](sim/patchbay/README.md).
+Para regressões de rede, veja [sim/patchbay](sim/patchbay/README.md). Para
+capturar pacotes, execute `PATCHBAY_PCAP=1 ctest --preset all`; os PCAPs ficam
+em `build/all/sim/patchbay/artifacts/<teste>/pcap/<nó>/`.
+
+## Simulação física
+
+O experimento físico executa dois peers em redes distintas e testa a transferência
+TCP pelo caminho direto ICE/QUIC. Depois de compilar com o preset `all`, execute
+em cada máquina, substituindo a interface e o IPv4 do servidor de sinalização/STUN:
+
+```sh
+sudo bash sim/physical/run-physical-ice.sh a <interface-do-peer-a> <ipv4-do-servidor>
+sudo bash sim/physical/run-physical-ice.sh b <interface-do-peer-b> <ipv4-do-servidor>
+```
+
+Os logs e PCAPs ficam em `build/all/sim/physical/artifacts/` na máquina de cada peer.
+Veja [sim/physical](sim/physical/README.md) para requisitos, execução e recuperação
+da rede.
 
 ## Roadmap sugerido
 

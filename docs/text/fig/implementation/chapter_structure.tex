@@ -1,0 +1,71 @@
+% Estrutura do Capítulo~\ref{chap:implementation} (Figura~\ref{fig:chapter_structure})
+% Requer: \usepackage{tikz} e \usetikzlibrary{positioning,fit,arrows.meta,calc}
+\resizebox{0.8\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\sffamily\small,
+  >={Stealth[length=2.2mm]},
+  layer/.style={draw, rounded corners=2pt, minimum height=11mm, align=center, inner sep=3pt},
+  app/.style={layer, fill=gray!12},
+  ifc/.style={layer, fill=blue!10},
+  proto/.style={layer, fill=green!10},
+  trans/.style={layer, fill=orange!14},
+  env/.style={layer, fill=violet!8},
+  group/.style={draw=black!45, dashed, rounded corners=4pt, inner sep=7pt},
+  title/.style={font=\sffamily\small\bfseries}
+]
+\def\figsr#1{\\[-1pt]{\scriptsize\itshape Seção~\ref{#1}}}
+% ---------------- Implementação no gateway ----------------
+\node[app, minimum width=80mm] (app) {Aplicação local sobre TCP (HTTP, MQTT, \ldots)\figsr{sec:tcp_tunneling}};
+\node[ifc, minimum width=80mm, below=4mm of app] (udpconn)
+  {\texttt{udp\_conn}: interface de \textit{hole punching}\\[-1pt]
+   \scriptsize tunelamento TCP $\cdot$ API e \textit{loop} de eventos\figsr{sec:hole_punching_interface}};
+\node[proto, minimum width=38mm, below=4mm of udpconn.south west, anchor=north west] (chownat)
+  {Chownat traduzido\\[-1pt]\scriptsize e estendido\figsr{sec:chownat_translation_extension}};
+\node[proto, minimum width=38mm, below=4mm of udpconn.south east, anchor=north east] (ossl)
+  {\texttt{ossl\_quic}\\[-1pt]\scriptsize QUIC da OpenSSL\figsr{sec:ossl_quic_for_hole_punching}};
+\node[proto, minimum width=38mm, below=4mm of ossl, fill=green!5] (bio)
+  {BIO personalizado\figsr{sec:openssl_bio}};
+\node[trans, minimum width=80mm, below=4mm of bio.south east, anchor=north east] (udptr)
+  {\texttt{udp\_transport}: gerência do \textit{socket} UDP\figsr{sec:udp_transport}};
+\node[trans, minimum width=38mm, below=4mm of udptr.south west, anchor=north west] (direct)
+  {\textit{Direct UDP}\\[-1pt]\scriptsize abordagem legada\figsr{sec:hole_punching_interface}};
+\node[trans, minimum width=38mm, below=4mm of udptr.south east, anchor=north east] (ice)
+  {ICE com \texttt{libnice}\\[-1pt]\scriptsize STUN $\cdot$ TURN $\cdot$ sinalização\figsr{sec:libnice_integration}};
+\node[layer, minimum width=80mm, below=4mm of direct.south west, anchor=north west, fill=white] (net)
+  {Rede com NAT\figsr{sec:nat_traversal}};
+
+\draw[->] (app) -- (udpconn);
+\draw[->] (udpconn.south -| chownat) -- (chownat);
+\draw[->] (udpconn.south -| ossl) -- (ossl);
+\draw[->] (ossl) -- (bio);
+\draw[->] (chownat) -- (chownat |- udptr.north);
+\draw[->] (bio) -- (bio |- udptr.north);
+\draw[->] (udptr.south -| direct) -- (direct);
+\draw[->] (udptr.south -| ice) -- (ice);
+\draw[->] (direct) -- (direct |- net.north);
+\draw[->] (ice) -- (ice |- net.north);
+
+\node[group, fit=(app)(net)(udpconn)(ice)] (stack) {};
+\node[title, anchor=south west] at (stack.north west) {Implementação no \textit{gateway} {\mdseries\scriptsize (Seções~\ref{sec:hole_punching_protocols} e~\ref{sec:ice_library})}};
+
+% ---------------- Ambientes de avaliação ----------------
+\node[env, minimum width=26mm, right=24mm of udpconn.east, anchor=west, yshift=6mm] (tdir)
+  {Topologia\\[-1pt]\scriptsize direta\figsr{sec:basic_topology_hole_punching}};
+\node[env, minimum width=26mm, right=3mm of tdir] (tice)
+  {Topologia\\[-1pt]\scriptsize ICE\figsr{sec:ice_topology}};
+\node[env, minimum width=55mm, anchor=north west] (gns3) at ($(tdir.south west)+(0,-9mm)$)
+  {GNS3\\[-1pt]\scriptsize uso inicial, sem resultados\figsr{sec:gns3}};
+\node[env, minimum width=55mm, below=3mm of gns3] (ns)
+  {\textit{Linux Network Namespaces}\\[-1pt]\scriptsize com PatchBay\figsr{sec:linux_network_namespaces}};
+\node[env, minimum width=55mm, below=3mm of ns] (phy)
+  {Infraestrutura física (DATACOM)\figsr{sec:physical_infrastructure}};
+\node[font=\sffamily\scriptsize\bfseries, anchor=south] at (gns3.north) {Ambientes (Seção~\ref{sec:simulation_environments})};
+\node[font=\sffamily\scriptsize\bfseries, anchor=south] at ($(tdir.north)!0.5!(tice.north)$) {Topologias (Seção~\ref{sec:topologies})};
+
+\node[group, fit=(tdir)(tice)(phy), inner ysep=14pt] (eval) {};
+\node[title, anchor=south west] at (eval.north west) {Ambientes de avaliação};
+
+\draw[->, thick, black!60] (stack.east |- ns) -- node[above, font=\sffamily\scriptsize] {validação} (eval.west |- ns);
+\draw[->, thick, black!60] (eval.south) -- ++(0,-7mm) node[below, font=\sffamily\scriptsize] {Resultados: Capítulo~\ref{chap:results}};
+\end{tikzpicture}%
+}

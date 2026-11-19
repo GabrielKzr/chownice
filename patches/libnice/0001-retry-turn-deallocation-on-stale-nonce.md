@@ -127,5 +127,3 @@ Os consumidores usam a biblioteca estática pelo target `Libnice::Nice`,
 sem substituir a instalação do sistema.
 
 Instruções de build e regressão: [README desta pasta](README.md).
-Evidências e limites da investigação:
-[relatório do nonce TURN](../../docs/analysis/libnice-turn-close-nonce-2026-11-03.md).

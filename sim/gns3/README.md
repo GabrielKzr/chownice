@@ -1,7 +1,6 @@
 # Validação final da integração no GNS3
 
-Estado em 2026-11-03: planejada, ainda não executada. Esta é a última etapa do
-[plano de validação](../../docs/plans/ice-quic-integration.md), após os cenários
+Estado em 2026-11-03: planejada, ainda não executada, após os cenários
 correspondentes passarem no Patchbay.
 
 ## Preparação

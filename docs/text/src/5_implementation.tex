@@ -1,27 +1,306 @@
 \chapter{Integração de uma Arquitetura de Transporte QUIC sobre ICE}
 \label{chap:implementation}
 
-Este capítulo descreve o desenvolvimento da comunicação entre \textit{peers} atrás de um NAT através das técnicas de \textit{NAT traversal} vistas na Seção~\ref{sec:nat_traversal}, com enfoque nas etapas de \textit{hole punching} baseadas nos métodos que utilizam o protocolo de transporte UDP, estendendo-se a um uso do protocolo QUIC para realizar a mesma comunicação, utilizando a biblioteca \texttt{OpenSSL} \citep{openssl_quic}.
+Este capítulo descreve a implementação da comunicação entre \textit{peers} situados atrás de NATs por meio das técnicas de travessia de NAT apresentadas na Seção~\ref{sec:nat_traversal}. O desenvolvimento se concentra nas etapas de \textit{hole punching} dos métodos baseados em UDP e, em seguida, estende essa comunicação ao protocolo QUIC com a biblioteca \texttt{OpenSSL} \citep{openssl_quic}.
 
-A partir do protocolo Chownat, visto na Seção~\ref{sec:chownat}, e da configuração de topologias vistas na Seção~\ref{sec:topologies}, em ambientes de simulação descritos na Seção~\ref{sec:simulation_environments}, foi realizada uma tradução e extensão deste protocolo, de forma a permitir maior estabilidade nas etapas de comunicação (como visto na Seção~\ref{sec:chownat_translation_extension}), a partir de uma interface genérica para realização de \textit{hole punching} (vista na Seção~\ref{sec:hole_punching_protocols}).
+Este trabalho teve origem em um projeto realizado em conjunto com a DATACOM, cujo objetivo era viabilizar a comunicação entre dois \textit{peers} com o mínimo de infraestrutura. Após o encerramento do projeto, o trabalho teve continuidade em caráter acadêmico, no contexto deste TCC.
 
-Além disso, esta solução foi generalizada para permitir o uso do protocolo ICE na obtenção de candidatos e na realização do \textit{hole punching}, como descrito na Seção~\ref{sec:ice_library}. Também é descrito o uso da biblioteca \texttt{libnice} para essa integração, que passa a ter a possibilidade de assumir a manipulação das \textit{sockets} de comunicação, antes feita diretamente pela interface genérica, tanto para protocolos genéricos (como o Chownat) quanto para a própria OpenSSL.
+Inicialmente, o objetivo era transmitir dados TCP, especificamente HTTP, por meio de técnicas de \textit{hole punching}. Devido à complexidade do \textit{hole punching} TCP (Seção~\ref{sec:tcp_hole_punching}), optou-se pelo \textit{hole punching} UDP. A base adotada foi o Chownat, que, além de realizar \textit{hole punching}, tunela dados TCP sobre UDP sem transmitir os pacotes de controle do TCP, permitindo uma comunicação direta entre os \textit{peers}.
 
-A implementação descrita neste capítulo é executada nos \textit{gateways} da arquitetura proposta. Nos ambientes de teste, esses \textit{gateways} são representados por \textit{hosts} de propósito geral, nos quais também executam as aplicações TCP locais. Os roteadores da topologia desempenham funções de encaminhamento e, quando configurados para isso, de NAT; não são os equipamentos nos quais a implementação é executada.
+Para a comunicação, o projeto propôs um servidor mínimo (\textit{rendezvous server}), responsável pela autenticação e pela troca de endereços IP entre os \textit{peers}, com função semelhante à de um servidor STUN na descoberta de endereços. O projeto também propôs um protocolo capaz de atender aos requisitos de dependabilidade e segurança descritos na introdução deste trabalho. O protocolo escolhido foi o QUIC, devido à sua adoção crescente e à sua compatibilidade com os requisitos de transmissão de dados de aplicação do projeto.
+
+O projeto implementou apenas parcialmente a infraestrutura de servidores e avançou pouco na comunicação QUIC entre dois \textit{peers}. Este trabalho também estende o trabalho de \citet{paladin2025quic}, que abordou os aspectos de segurança e as razões para a escolha do QUIC nos cenários propostos.
+
+A implementação descrita neste capítulo executa nos \textit{gateways} da arquitetura proposta, que realizam a comunicação externa e executam as aplicações integradas ao túnel. O objetivo é interligar essas aplicações quando os \textit{gateways} se encontram em redes distintas, por meio dos mecanismos de descoberta e seleção de caminhos da solução. Os dispositivos IoT, como sensores e atuadores, não participam da negociação de conectividade, e a obtenção e o encaminhamento de seus dados cabem à aplicação do \textit{gateway}. Nos experimentos, aplicações locais de geração e recepção de mensagens representam esses dados. Nos ambientes de teste, os \textit{gateways} correspondem a \textit{hosts} de propósito geral, e os roteadores da topologia realizam o encaminhamento de pacotes e, quando configurados para isso, a tradução de endereços (NAT). A implementação não é executada nesses roteadores. Este trabalho também não estabelece requisitos mínimos de execução nem caracteriza o consumo das bibliotecas utilizadas em dispositivos IoT com recursos limitados.
+
+A Figura~\ref{fig:chapter_structure} apresenta a organização do capítulo. À esquerda, a figura mostra as camadas da implementação executada nos \textit{gateways}. À direita, mostra os ambientes utilizados na avaliação. Cada bloco indica a seção que o descreve.
+
+A Seção~\ref{sec:hole_punching_protocols} apresenta a tradução e a extensão do protocolo Chownat (Seção~\ref{sec:chownat}), a interface genérica de \textit{hole punching} (\texttt{udp\_conn}) derivada desse protocolo e a implementação QUIC baseada na biblioteca \texttt{OpenSSL}. A Seção~\ref{sec:ice_library} generaliza a solução com o ICE. Nessa etapa, a interface \texttt{udp\_transport} abstrai o \textit{socket} UDP, e a biblioteca \texttt{libnice} assume a obtenção de candidatos, o \textit{hole punching} e o gerenciamento dos \textit{sockets}, tanto para protocolos genéricos, como o Chownat, quanto para a OpenSSL. Por fim, a Seção~\ref{sec:topologies} apresenta as topologias de teste, e a Seção~\ref{sec:simulation_environments} descreve os ambientes experimentais, compostos por dois ambientes de simulação e uma infraestrutura física.
+
+\begin{figure}[ht]
+\centering
+\input{fig/implementation/chapter_structure}
+\caption{Estrutura do capítulo: camadas da implementação executada nos \textit{gateways} e ambientes utilizados na avaliação, com as seções correspondentes.}
+\label{fig:chapter_structure}
+\end{figure}
+
+\section{Protocolos de Comunicação para Hole Punching}
+\label{sec:hole_punching_protocols}
+
+Esta seção apresenta as implementações e extensões desenvolvidas para viabilizar a comunicação com as técnicas de \textit{hole punching} propostas inicialmente, o que permite a comunicação direta entre dois \textit{peers} situados atrás de NATs:
+
+\begin{itemize}
+    \item a Seção~\ref{sec:chownat_translation_extension} apresenta a tradução e a extensão do Chownat, iniciadas durante o projeto com a DATACOM;
+    \item a Seção~\ref{sec:hole_punching_interface} apresenta a interface de transporte genérica para \textit{hole punching}, derivada do Chownat;
+    \item a Seção~\ref{sec:ossl_quic_for_hole_punching} apresenta uma proposta de uso da biblioteca OpenSSL no modo \textit{threadless} para \textit{hole punching}.
+\end{itemize}
+
+\subsection{Tradução e Extensão do Protocolo Chownat}
+\label{sec:chownat_translation_extension}
+
+O Chownat foi implementado originalmente em Perl \citep{kamkar2004chownatv07}. O projeto com a DATACOM, descrito no início deste capítulo, adotou esse protocolo porque ele atendia às necessidades iniciais de compreensão e aplicação de técnicas de travessia de NAT. Além disso, o protocolo realiza \textit{hole punching} de forma nativa e oferece tunelamento TCP, necessário ao tráfego das aplicações HTTP do projeto.
+
+Durante o projeto, o protocolo foi traduzido para C e Dart, com a preservação de seu funcionamento original, sem extensões nem modificações. Essa tradução, entretanto, estava incompleta e apresentava diversas limitações, principalmente nas etapas de criação, reinício e finalização de conexões. Além disso, como o Chownat foi concebido apenas para tunelamento TCP, não era possível uma comunicação somente com UDP.
+
+Embora não constituam o objetivo principal deste trabalho, as extensões e modificações no Chownat permitiram testar o funcionamento da interface (Seção~\ref{sec:hole_punching_interface}) e generalizá-la para protocolos posteriores, como o QUIC. Portanto, o valor desse desenvolvimento está na verificação do funcionamento, e não na recomendação do protocolo para outras aplicações. O Chownat apresenta diversas limitações, como a falta de garantia dos requisitos de dependabilidade, citados na introdução deste trabalho, que são essenciais na transmissão de dados IoT.
+
+\subsubsection{Limitações do Chownat e Extensões Desenvolvidas}
+\label{sec:chownat_limitations}
+
+O Chownat possui diversas limitações, associadas principalmente ao seu objetivo original. Na época de seu desenvolvimento, em 2004 \citep{kamkar2004chownat}, as técnicas de travessia de NAT ainda estavam em exploração, e as arquiteturas de rede P2P eram vistas com desconfiança, devido à sua associação com a pirataria. Assim, o Chownat não parece ter sido concebido para uso contínuo em um dispositivo, mas sim para demonstrar o funcionamento de técnicas de \textit{hole punching} em dispositivos NAT.
+
+Como a interface genérica, apresentada na Seção~\ref{sec:hole_punching_interface}, se baseia no Chownat, os mecanismos propostos para generalizá-la e viabilizar seu uso por outros protocolos também beneficiam o próprio Chownat. Algumas limitações não foram solucionadas, principalmente as específicas do protocolo, como suas garantias de dependabilidade. Ainda assim, parte delas foi resolvida para permitir testes sobre os recursos da interface. As principais limitações e o tratamento dado a cada uma são:
+
+\begin{itemize}
+    \item \textbf{Conexão suporta apenas o envio de 256 pacotes:} o identificador de pacote ocupa um único byte e, portanto, assume valores entre 0 e $2^8-1$. Optou-se por manter o cabeçalho do Chownat (Seção~\ref{sec:chownat_protocol}) e reiniciar a contagem ao atingir o limite. Perdas de mais de 256 pacotes consecutivos ainda geram comportamento indefinido, mas essa solução foi preferida à extensão do campo para 2 bytes, pois preserva o formato original do pacote;
+    \item \textbf{Apenas permite comunicação de dados TCP:} o Chownat funciona apenas com tunelamento TCP e não permite o envio nativo de dados UDP. Com a interface genérica, o tunelamento TCP passou a ser opcional por conexão, e a aplicação pode enviar dados nativamente, sem depender de uma conexão TCP externa;
+    \item \textbf{Permite apenas uma conexão por aplicação:} ao finalizar a única conexão TCP suportada, o protocolo original entrava em \textit{loop} infinito. A solução consistiu em implementar um \textit{3-way handshake} de desconexão, com número máximo de tentativas configurável por conexão. Assim, ao finalizar uma conexão TCP, a conexão Chownat também é finalizada, e uma nova conexão pode ser inicializada;
+    \item \textbf{Hole punching exige tradução de porta com ``mapeamento espelhado'':} o \textit{hole punching} do Chownat depende de o NAT preservar a porta de origem, isto é, mapear o tráfego para a mesma porta à qual o \textit{socket} remetente está vinculado. Alguns NATs apresentam esse comportamento, como o NAT simulado pelo PatchBay \citep{patchbay} no modo \textit{Moderate}, mas trata-se de um caso particular, e não de uma regra geral entre implementações de NAT. A integração da biblioteca ICE, descrita na Seção~\ref{sec:ice_library}, resolveu posteriormente esse problema;
+    \item \textbf{Sem garantias de dependabilidade:} o protocolo não oferece garantias de confiabilidade, integridade, autenticidade ou segurança. Essa limitação não foi resolvida, pois o objetivo final é o uso do QUIC, que oferece nativamente entrega confiável e proteção criptográfica. Manteve-se, portanto, a simplicidade do Chownat para fins exclusivos de teste.
+\end{itemize}
+
+Em síntese, as extensões desenvolvidas não tornam o Chownat um protocolo pronto para uso em produção. Sua limitação mais fundamental, a ausência de garantias de dependabilidade, foi deliberadamente mantida. O valor desse trabalho de extensão está em fornecer um protocolo funcional e conhecido como base de testes para a interface genérica, o que permitiu validar empiricamente as técnicas de \textit{hole punching} antes de aplicá-las a um protocolo com garantias mais robustas, como o QUIC.
+
+\subsection{Interface de Transporte para Hole Punching}
+\label{sec:hole_punching_interface}
+
+A interface de transporte para \textit{hole punching} foi criada especificamente para este trabalho, com o objetivo de permitir que múltiplos protocolos de transporte sobre UDP realizem \textit{hole punching}, independentemente de o protocolo oferecer esse recurso nativamente. A interface também habilita o tunelamento de TCP sobre esses protocolos, permitindo transportar dados de serviços da camada de aplicação baseados em TCP por meio de outros protocolos de transporte.
+
+A interface é baseada no Chownat (Seção~\ref{sec:chownat}) e propõe uma versão modular desse protocolo, cuja estrutura pode ser reutilizada na aplicação de \textit{hole punching} a outros protocolos, como o QUIC. O objetivo principal é reutilizar os componentes do protocolo original, isto é, as partes associadas ao \textit{hole punching} e ao tunelamento TCP, de modo que a integração de outro protocolo exija apenas a substituição de componentes.
+
+A interface também adota uma abordagem \textit{threadless}, com uma API baseada em eventos inspirada na API da biblioteca \texttt{libwebsockets} \citep{libwebsockets}. Essa implementação utiliza a chamada de sistema \texttt{select}, que monitora múltiplos \textit{sockets} e aguarda a chegada de novos dados em qualquer um deles.
+
+Além disso, a interface oferece um modelo de configuração que gerencia o uso do \textit{hole punching} e do tunelamento TCP. Essa configuração ocorre antes do início da conexão do protocolo, o que também favorece a arquitetura modular.
+
+\subsubsection{Configuração da Interface}
+
+Assim como o Chownat, a interface mantém duas sessões, uma UDP e outra TCP, o que permite o tunelamento.
+
+Cada sessão possui configurações próprias, como \textit{timeouts} e endereços de origem e destino. Assim, uma aplicação pode configurar a interface previamente a partir de dados obtidos externamente, por exemplo, por meio do ICE.
+
+A configuração também permite registrar uma função de \textit{callback}, chamada a cada novo evento com o motivo (\textit{reason}) do evento como parâmetro.
+
+Para fornecer uma organização baseada no paradigma de orientação a objetos, a configuração permite escolher a implementação de protocolo que utilizará a sessão UDP. Um novo protocolo UDP precisa apenas implementar um conjunto de funções predefinidas, de forma análoga a uma tabela de métodos virtuais (\textit{vtable}). Na prática, essa tabela corresponde a um conjunto de ponteiros de função que cada implementação de protocolo deve fornecer. A Figura~\ref{fig:udp_conn_diagram} apresenta o diagrama de blocos da API pública da interface.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/implementation/interface/udp_conn_diagram.png}
+    \caption{Diagrama de blocos da interface genérica de conexão UDP udp\_conn.}
+    \label{fig:udp_conn_diagram}
+\end{figure}
+
+A interface genérica permite ainda que o protocolo UDP opere em dois modos, cliente e servidor. Cada modo executa funções específicas no uso do tunelamento TCP. Esses comportamentos correspondem aos descritos na Seção~\ref{sec:chownat} e são detalhados na Seção~\ref{sec:interface_connection_flow_and_hole_punching}.
+
+\subsubsection{Fluxo de Conexão e Hole Punching}
+\label{sec:interface_connection_flow_and_hole_punching}
+
+A conexão por meio desta interface se baseia em três operações, cuja ordem define se o processo opera como cliente ou como servidor. As operações são as seguintes:
+
+\begin{enumerate}
+    \item \textbf{Bind TCP:} vincula a sessão TCP ao serviço local;
+    \item \textbf{Hole Punching:} realiza a travessia de NAT por \textit{hole punching} UDP;
+    \item \textbf{Conexão UDP:} executa o processo de conexão do próprio protocolo, quando este não está integrado ao \textit{hole punching}.
+\end{enumerate}
+
+Para compreender essas diferenças, é preciso retomar as etapas de conexão descritas na Seção~\ref{sec:chownat_connection}. No modo cliente, a interface aguarda uma conexão TCP de outro processo da própria máquina destinada ao serviço desejado. No modo servidor, a interface aguarda apenas uma conexão UDP remota. Após receber a conexão TCP local, o cliente inicia o \textit{hole punching}. O servidor, por sua vez, conecta-se ao serviço TCP local somente após concluir o \textit{hole punching}. Assim, as duas operações ocorrem em ordem inversa nos dois modos, o que gera o fluxo da Figura~\ref{fig:udp_conn_connection_flow_diagram}.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/implementation/interface/udp_conn_connection_flow_diagram.png}
+    \caption{Diagrama de tempo da interface de conexão UDP \texttt{udp\_conn}.}
+    \label{fig:udp_conn_connection_flow_diagram}
+\end{figure}
+
+A implementação do protocolo UDP é responsável apenas pelas etapas de comunicação externa com o outro \textit{peer}. A própria interface gerencia as comunicações TCP internas, de modo que o protocolo não precisa conhecer o funcionamento do tunelamento.
+
+\subsubsection{API e Loop de Eventos}
+\label{sec:api_and_event_loop}
+
+A API baseada em eventos é uma adição ao Chownat que permite um comportamento reativo e o uso do protocolo sem tunelamento TCP. Essa API integra a extensão do Chownat descrita na Seção~\ref{sec:chownat_translation_extension}.
+
+A interface recebe eventos em dois níveis. O primeiro corresponde aos eventos que o sistema operacional sinaliza à interface quando um novo pacote chega a um \textit{socket}. A chamada de sistema \texttt{select} aguarda atividade em um subconjunto de \textit{sockets} e retorna quando há dados ou quando o tempo limite expira, o que permite à interface continuar a execução. O Chownat já utilizava essa chamada, e o tempo limite do \texttt{select} determina o envio periódico de pacotes \textit{keep-alive}, que abrem e mantêm os mapeamentos nos NATs (Listagem~\ref{lst:select_pseudocode}).
+
+
+\begin{lstlisting}[float=htbp, caption={Pseudocódigo do loop de eventos da interface}, label={lst:select_pseudocode}]
+    while (true)
+        ret = select(sockets, ..., timeout)
+        if (ret == TIMEOUT_EXCEEDED)
+            send_keep_alive()
+        else
+            handle_sockets()
+\end{lstlisting}
+
+O segundo nível corresponde aos eventos entregues à aplicação. Cada implementação de protocolo define seus próprios eventos, como o recebimento de uma mensagem, a ocorrência de um erro e o início ou o fim de uma conexão. Por meio desses eventos, a aplicação pode intervir no fluxo de conexão com a API pública da interface, que inclui as seguintes ações:
+
+\begin{itemize}
+    \item \textbf{udp\_conn\_send:} envia uma mensagem;
+    \item \textbf{udp\_conn\_recv:} aguarda o recebimento de uma mensagem;
+    \item \textbf{udp\_conn\_disconnect:} finaliza a conexão.
+\end{itemize}
+
+Além dessa API pública, a interface oferece funções de criação e finalização de conexão, que não podem ser chamadas dentro do \textit{loop} de eventos:
+
+\begin{itemize}
+    \item \textbf{udp\_conn\_init:} inicializa a interface com uma implementação de protocolo;
+    \item \textbf{udp\_connection:} inicializa a conexão e executa o próprio \textit{loop} de eventos, do qual retorna somente quando a conexão é finalizada;
+    \item \textbf{udp\_conn\_deinit:} desinicializa a interface.
+\end{itemize}
+
+\subsubsection{Tunelamento TCP}
+\label{sec:tcp_tunneling}
+
+O tunelamento TCP é um dos principais atributos da arquitetura do Chownat. Ele permite a conectividade entre \textit{peers} e o reuso de serviços implementados sobre TCP, com menor \textit{overhead} de comunicação. Ele também contribui para a modularidade dos serviços, pois desacopla indiretamente o protocolo de transporte, e facilita a migração de serviços baseados em TCP para UDP. Essa facilidade de migração é relevante para a proposta deste trabalho, devido à ampla utilização, na Internet das Coisas (IoT), de protocolos de aplicação baseados em TCP e em arquiteturas cliente-servidor, como HTTP e MQTT. Assim, a solução proposta busca facilitar a adoção de uma arquitetura \textit{peer-to-peer} por aplicações existentes, com menos modificações nos serviços desenvolvidos originalmente para TCP.
+
+A interface oferece o tunelamento de forma transparente à implementação do protocolo, como um recurso opcional para a aplicação. Conforme a Seção~\ref{sec:chownat}, a conexão TCP ocorre apenas localmente. O serviço envia seus pacotes à interface por meio de um \textit{socket} TCP vinculado a ele, de modo que os segmentos de controle TCP (como SYN, ACK e FIN) permanecem locais e a conexão remota transporta apenas os dados do serviço de aplicação (HTTP, SSH etc.). O protocolo sobre UDP, entretanto, pode transmitir seus próprios pacotes de controle. Quando a aplicação envia uma mensagem ao \textit{socket} vinculado, o \textit{loop} de eventos da interface (Seção~\ref{sec:api_and_event_loop}) sinaliza o recebimento, e a interface identifica o \textit{socket} de origem. Se os dados chegam pelo \textit{socket} TCP, a interface os encaminha pela implementação UDP. Se chegam pela implementação UDP, o protocolo apenas os entrega à interface, que verifica se há tunelamento ativo e os redireciona ao \textit{socket} TCP local, o que permite a resposta à aplicação. A Figura~\ref{fig:udp_conn_tcp_tunneling_diagram} apresenta esse fluxo completo.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=1.0\textwidth]{fig/implementation/interface/udp_conn_tcp_tunneling_diagram.png}
+    \caption{Diagrama de tempo de uma requisição TCP tunelada por UDP utilizando a interface udp\_conn.}
+    \label{fig:udp_conn_tcp_tunneling_diagram}
+\end{figure}
+
+\subsection{Uso da Biblioteca OpenSSL para QUIC Hole Punching}
+\label{sec:ossl_quic_for_hole_punching}
+
+Devido à complexidade do QUIC (Capítulo~\ref{chap:quic}), optou-se por utilizar uma biblioteca para a comunicação entre \textit{peers} com esse protocolo. Além disso, o protocolo incorpora diversos mecanismos de segurança, o que desaconselha uma implementação própria, sujeita a riscos decorrentes de falhas de implementação.
+
+Como o objetivo é utilizar uma arquitetura baseada no Chownat, este trabalho não adota implementações existentes de \textit{QUIC hole punching}, pois elas seguem abordagens diferentes, como alterações no próprio protocolo QUIC, a exemplo da segunda proposta de \citet{draft-seemann-quic-nat-traversal}. O objetivo foi utilizar uma biblioteca consolidada para implementar a primeira alternativa de \textit{QUIC hole punching} proposta por \citet{draft-seemann-quic-nat-traversal}, que consiste em realizar o \textit{hole punching} previamente, via ICE ou método equivalente, e então estabelecer a conexão QUIC sobre o caminho já aberto.
+
+Para a implementação do QUIC, optou-se pela biblioteca \texttt{OpenSSL}, um projeto de código aberto consolidado no desenvolvimento de soluções criptográficas e protocolos de comunicação segura. A partir da versão 3.2, lançada em novembro de 2023 \citep{openssl_quic}, a \texttt{OpenSSL} passou a oferecer suporte nativo a conexões QUIC no lado cliente, e a versão 3.5 estendeu esse suporte ao lado servidor. A escolha se fundamenta na manutenção ativa do projeto, na disponibilidade de documentação oficial e na integração do QUIC à API SSL existente, que permite reutilizar abstrações e mecanismos de comunicação da biblioteca. Além disso, a \texttt{OpenSSL} aceita um \textit{socket} externo, o que permite reutilizar um \textit{socket} que já passou por \textit{hole punching} e manter o caminho aberto para a conexão QUIC. Esse recurso é um pré-requisito para combinar a arquitetura do Chownat com a primeira alternativa de \citet{draft-seemann-quic-nat-traversal}, que não altera o protocolo.
+
+\subsubsection{Configuração e Conexão do Protocolo QUIC}
+
+A implementação do protocolo sobre a interface expõe apenas parte da API da \texttt{OpenSSL} e funciona como um \textit{wrapper}, que adiciona configurações para simplificar o uso. Esse \textit{wrapper} recebeu o nome ``ossl\_quic''. O usuário pode configurar, no cliente e no servidor, as suítes criptográficas do TLS 1.3 disponibilizadas pela \texttt{OpenSSL}, pois o QUIC utiliza exclusivamente o TLS 1.3 em seu \textit{handshake}.
+
+A \texttt{OpenSSL} organiza suas configurações em contextos. As configurações de cliente e servidor diferem principalmente porque este trabalho não utiliza o mTLS (\textit{mutual TLS}), que autentica tanto o servidor quanto o cliente. Nos experimentos, o servidor utilizou um certificado autoassinado, e a validação do certificado pelo cliente foi desabilitada. Essa configuração estabelece uma conexão cifrada, mas não verifica a identidade do servidor remoto. Seu uso se restringiu aos testes. Em produção, a validação do certificado deve estar habilitada, com uma configuração de confiança adequada para verificar a identidade do servidor remoto.
+
+Além disso, embora não tenha sido abordado no Capítulo~\ref{chap:quic}, o QUIC exige a negociação do protocolo de aplicação por meio da extensão ALPN (\textit{Application Layer Protocol Negotiation}) durante o \textit{handshake}. Como o objetivo é transportar dados genéricos, não associados a um protocolo de aplicação específico, utiliza-se um identificador arbitrário, ``osslquic'', configurado nas duas extremidades.
+
+Assim como no Chownat (Seção~\ref{sec:chownat}), esta etapa inicializa o \textit{socket} UDP e o vincula a um endereço específico. A Figura~\ref{fig:ossl_quic_configuration} apresenta o diagrama de tempo dessa configuração.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/implementation/ossl_quic/ossl_quic_configuration_time_diagram.png}
+    \caption{Diagrama de tempo da configuração do QUIC da OpenSSL sobre a interface.}
+    \label{fig:ossl_quic_configuration}
+\end{figure}
+
+\subsubsection{Processo de Hole Punching e Conexão}
+
+O processo de \textit{hole punching} da implementação ``ossl\_quic'' segue o padrão do Chownat: o \textit{hole punching} ocorre antes da conexão QUIC, o que implementa parcialmente a primeira proposta de \citet{draft-seemann-quic-nat-traversal}. Na prática, esse \textit{hole punching} pode ser realizado pelo próprio ICE, como descrito na Seção~\ref{sec:ice_library}.
+
+Concluído o \textit{hole punching}, inicia-se a conexão QUIC. Essa etapa corresponde à operação opcional de conexão UDP descrita na Seção~\ref{sec:interface_connection_flow_and_hole_punching} e ilustrada na Figura~\ref{fig:udp_conn_connection_flow_diagram}. Antes dela, a implementação executa uma operação interna, denominada neste trabalho \textit{pre connect}. Os datagramas residuais do \textit{hole punching} não exigem descarte manual. O RFC~9000 determina que o servidor descarte pacotes \texttt{Initial} contidos em datagramas UDP com menos de 1200 bytes \citep{rfc9000}, e datagramas que não formam pacotes QUIC válidos também são descartados pela implementação.
+
+A \textit{pre connect}, como o nome indica, ocorre antes da conexão e cria uma nova conexão SSL, nome dado às conexões da \texttt{OpenSSL}, posteriormente utilizada na conexão QUIC. Essa operação cria a conexão, ou o \textit{listener} no caso do servidor, inicializa esse objeto no estado adequado e vincula o descritor de arquivo (\textit{file descriptor}, FD) correspondente, configurando o cliente como conexão e o servidor como \textit{listener}. No lado do cliente, a operação também chama a função POSIX \texttt{connect}, que associa o \textit{socket} UDP a um endereço remoto sem estabelecer uma conexão, ao contrário do que ocorre no TCP. No lado do servidor, o \textit{socket} é configurado inicialmente como bloqueante, para que o servidor aguarde a conexão QUIC.
+
+Durante a conexão, o servidor apenas aguarda, por meio de \texttt{accept}, a chegada de uma conexão externa. O cliente, por sua vez, inicia a conexão por meio da \texttt{OpenSSL}, que executa as etapas descritas na Seção~\ref{sec:quic_connection_steps}.
+
+\subsubsection{Gerência da Conexão}
+
+A gerência da conexão segue o modelo do Chownat (Seção~\ref{sec:chownat}), com o uso de \textit{keep-alives}, o envio e o recebimento de mensagens por meio das chamadas \texttt{send} e \texttt{recv} e a gerência do tunelamento TCP discutida anteriormente. Como a \textit{engine} QUIC da \texttt{OpenSSL} é mais elaborada que um protocolo simples como o Chownat, foi necessário estender a interface da Seção~\ref{sec:hole_punching_interface} para suportar comportamentos da implementação do protocolo. A extensão incluiu o processamento de eventos e o processamento de dados pendentes do protocolo.
+
+O processamento de eventos é necessário porque a interface é \textit{threadless} (Seção~\ref{sec:hole_punching_interface}). Assim, a própria interface precisa processar explicitamente eventos assíncronos, como \textit{timeouts} e o envio e o recebimento de pacotes de controle. Segundo a documentação da \texttt{OpenSSL} \citep{openssl_ssl_handle_events}, esse processamento não seria necessário no modo de assistência por \textit{threads}, no qual uma \textit{thread} interna da biblioteca trata esses eventos periodicamente. As chamadas de \textit{read} e \textit{write} também processam esses eventos e operam em modo bloqueante apenas durante a etapa de conexão. Ainda assim, quando essas chamadas ocorrem em intervalos longos, a interface precisa tratar os eventos explicitamente.
+
+O processamento de dados pendentes, por sua vez, decorre de um comportamento da \texttt{OpenSSL}. Ao receber pacotes QUIC, seja no processamento de eventos, seja em operações de \textit{read}, a biblioteca os armazena em um \textit{buffer} interno. Os dados pendentes passam então a ser lidos da biblioteca, e não mais do \textit{socket}. No Chownat, a espera por dados dependia apenas da existência de dados no \textit{socket}, verificada pelo \textit{loop} de eventos. Com a biblioteca QUIC, essa lógica se torna insuficiente, pois o \textit{socket} aparece vazio assim que a \texttt{OpenSSL} o esvazia internamente, mesmo que pacotes recebidos permaneçam no \textit{buffer} da biblioteca à espera de processamento. Por isso, a interface também precisa processar esses dados pendentes.
+
+Além disso, o processamento de eventos introduz uma segunda dependência temporal na interface. Antes, a única dependência temporal era o \textit{timeout} de atividade nos \textit{sockets}, controlado pela chamada de sistema \texttt{select}. Com a extensão, a \texttt{OpenSSL} passa a definir também um \textit{timeout} para eventos internos. Por isso, o tempo de espera do \texttt{select} pode precisar ser mais curto, para que um evento interno do protocolo seja tratado antes do próximo \textit{keep-alive}.
+
+A solução consiste em manter um ponto de referência de inatividade, atualizado a cada atividade no \textit{socket}. A cada iteração, a interface compara os dois \textit{timeouts} e utiliza o menor como tempo de espera do \texttt{select}. Quando o \texttt{select} expira, a interface verifica se o ponto de inatividade foi atingido. Em caso afirmativo, o \textit{timeout} decorreu da inatividade, e a interface envia um \textit{keep-alive} para manter o mapeamento no NAT. Caso contrário, o \textit{timeout} decorreu do \textit{timeout} interno de eventos, mais curto. Nesse caso, o \textit{loop} retorna ao início e processa os eventos e os pacotes pendentes antes de aguardar o próximo pacote no \texttt{select}.
+
+Dessa forma, o fluxo da Figura~\ref{fig:udp_conn_tcp_tunneling_diagram} recebe alterações que o tornam portável para bibliotecas com requisitos que o Chownat, devido à sua simplicidade, não exigia nem tratava. A Figura~\ref{fig:udp_conn_additional_methods} apresenta o fluxo resultante.
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/implementation/ossl_quic/new_udp_conn_diagram.png}
+    \caption{Diagrama de atividades do fluxo atualizado da interface \texttt{udp\_conn}.}
+    \label{fig:udp_conn_additional_methods}
+\end{figure}
+
+\section{Uso da Biblioteca libnice para a Integração do Protocolo ICE}
+\label{sec:ice_library}
+
+Conforme a Seção~\ref{sec:ice}, o ICE é o protocolo responsável por descobrir os endereços candidatos de cada \textit{peer} e selecionar um par de candidatos que permita a comunicação P2P por meio de técnicas de travessia de NAT. A implementação descrita na Seção~\ref{sec:hole_punching_protocols} herda do Chownat a necessidade de conhecer previamente esses endereços. Essa necessidade impõe a dependência do ``mapeamento espelhado'', descrita na Seção~\ref{sec:chownat_limitations}. Para solucionar esse problema de forma genérica, tanto para o Chownat quanto para os protocolos que utilizam a interface \texttt{udp\_conn} (Seção~\ref{sec:hole_punching_interface}), este trabalho criou uma nova interface de transporte, responsável pela gerência do \textit{socket} UDP da conexão. Essa interface permite à aplicação escolher o modelo de transporte, com suporte tanto à abordagem legada da Seção~\ref{sec:hole_punching_interface} quanto à nova abordagem baseada em ICE, descrita nesta seção.
+
+Entre as principais bibliotecas de ICE, este trabalho escolheu a \texttt{libnice} \citep{libnice}, principalmente pela praticidade de integração. A biblioteca oferece uma API baseada em eventos sobre a \texttt{GLib} e implementa os clientes STUN e TURN, que ficam abstraídos da aplicação. Além disso, a \texttt{libnice} é implementada em C, o que facilita a integração direta com sua API. A escolha também considerou a maturidade da biblioteca e sua interoperabilidade com a \textit{Google WebRTC Library} \citep{WebRTCOrg}, principal implementação de WebRTC, utilizada em diversos navegadores. Segundo a documentação do projeto \citep{libnice}, a \texttt{libnice} segue o RFC~8445 \citep{rfc8445}, o que facilita a integração com outros serviços de teste, como o servidor \texttt{coturn} \citep{coturn}.
+
+\subsection{Interface de Gerência de \textit{Sockets}}
+\label{sec:udp_transport}
+
+Diferentemente da abordagem anterior, que permitia controle completo do \textit{socket} UDP utilizado no transporte dos pacotes, a \texttt{libnice} não expõe seu \textit{socket}, o que impede manter essa abordagem. Isso ocorre porque a biblioteca precisa gerenciar os pacotes de \textit{keep-alive} da conexão e, quando necessário, o encaminhamento dos dados por um servidor TURN, como ilustra a Figura~\ref{fig:turn_quic_tcp_tunneling}.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/implementation/libnice/turn_quic_tcp_tunneling.png}
+    \caption{Representação de transmissão de pacotes TCP tunelados sobre QUIC sendo tunelados por TURN até o servidor \textit{relay}.}
+    \label{fig:turn_quic_tcp_tunneling}
+\end{figure}
+
+
+Até então, as chamadas POSIX recebiam diretamente o \textit{socket} utilizado (\texttt{sendto}, \texttt{recvfrom} etc.). Para preservar essa estrutura, este trabalho criou uma camada fina que abstrai a existência do \textit{socket} UDP e permite realizar as chamadas sem acesso direto a ele. Essa camada, denominada \texttt{udp\_transport}, é uma interface que define um contrato a ser implementado por soluções específicas. Assim, uma implementação baseada na \texttt{libnice} pode cumprir esse contrato e manter a gerência de seu \textit{socket} opaca para os usuários da camada, que, neste caso, são a interface \texttt{udp\_conn} e suas implementações. A camada também preserva a solução legada, que gerencia \textit{sockets} diretamente. A Figura~\ref{fig:udp_transport_interface} ilustra essa flexibilidade: a solução legada recebe o nome \textit{Direct UDP}, e a nova solução corresponde à solução ICE.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\textwidth]{fig/implementation/interface/udp_transport_flexibility.png}
+    \caption{Diagrama de estrutura pós-adesão da interface \texttt{udp\_transport}.}
+    \label{fig:udp_transport_interface}
+\end{figure}
+
+\subsection{QUIC da OpenSSL com BIO}
+\label{sec:openssl_bio}
+
+Diferentemente do Chownat, que manipula conexões e dados por meio das funções POSIX, a implementação QUIC da \texttt{OpenSSL} abstrai essas funções com versões próprias e realiza o envio apenas pelo \textit{socket} configurado. Portanto, não é possível simplesmente redirecionar suas chamadas para as funções de \texttt{udp\_transport}. Caso contrário, a \texttt{udp\_transport} precisaria conhecer a implementação QUIC, o que quebraria o contrato e eliminaria o isolamento da interface em relação ao protocolo de transporte.
+
+Entretanto, a \texttt{OpenSSL} fornece uma abstração denominada BIO (\textit{Basic Input/Output}), que isola o tipo de entrada e saída utilizado, como arquivo, \textit{socket} ou \textit{buffer}. A biblioteca realiza toda a entrada e saída por meio de BIOs, e uma aplicação pode fornecer um BIO próprio, desde que implemente o contrato correspondente.
+
+Esse recurso resolve o problema descrito anteriormente. Um novo BIO pode chamar a implementação de \texttt{udp\_transport} e ocultar da camada superior o protocolo de transporte utilizado. A Figura~\ref{fig:openssl_quic_bio_update} apresenta esse fluxo.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.9\textwidth]{fig/implementation/libnice/openssl_quic_bio_update.png}
+    \caption{Diagrama de funcionamento do \texttt{BIO OpenSSL} juntamente com a interface \texttt{udp\_transport}.}
+    \label{fig:openssl_quic_bio_update}
+\end{figure}
+
+O contrato para a criação de um novo BIO, como o implementado neste trabalho, está descrito na documentação da \texttt{OpenSSL} \citep{openssl_bio_meth} e exige os seguintes métodos:
+
+\begin{itemize}
+    \item \textbf{create}: inicializar o estado específico de uma nova instância do BIO, cuja estrutura já foi alocada pela \texttt{OpenSSL};
+    \item \textbf{destroy}: liberar os recursos específicos da instância. A estrutura BIO em si é liberada pela \texttt{OpenSSL};
+    \item \textbf{ctrl}: atender comandos e consultas de controle, como \textit{flush}, configuração e obtenção de informações sobre o BIO;
+    \item \textbf{sendmmsg}: enviar os datagramas fornecidos e informar quantas mensagens foram processadas;
+    \item \textbf{recvmmsg}: receber datagramas nos \textit{buffers} fornecidos, preencher os tamanhos e endereços solicitados e informar quantas mensagens foram processadas.
+\end{itemize}
+
+\subsection{Funcionamento da Integração da \texttt{libnice}}
+\label{sec:libnice_integration}
+
+Na integração da \texttt{libnice} com a interface \texttt{udp\_transport}, a aplicação apenas configura a interface. Essa configuração se resume ao endereço IP e à porta do servidor STUN, ao endereço IP e à porta do servidor TURN e a uma \textit{callback} que realiza a sinalização da forma mais adequada à aplicação.
+
+A inicialização da interface resolve grande parte das responsabilidades do ICE. A interface aplica à biblioteca as configurações definidas pela aplicação, incluindo os servidores. Em seguida, a biblioteca coleta os candidatos locais a partir das interfaces de rede e dos servidores STUN e TURN. A interface então chama a \textit{callback} de sinalização definida pela aplicação, que troca candidatos e credenciais com o \textit{peer} remoto, e aguarda o recebimento dos candidatos remotos. Após recebê-los, a biblioteca executa as verificações de conectividade e seleciona um par de candidatos, o que conclui o \textit{hole punching}. O controle passa então à interface \texttt{udp\_conn}, cuja única responsabilidade pendente é a gerência da conexão.
+
+Como mencionado, a \texttt{libnice} utiliza a \texttt{GLib}, biblioteca que fornece uma API baseada em eventos. Na implementação original da \texttt{udp\_conn}, a chamada \texttt{select} gerenciava múltiplos \textit{sockets}. Com a interface \texttt{udp\_transport}, essa chamada passou a ser abstraída pela própria interface, responsável pelo \textit{socket} UDP. Assim, a implementação ICE substitui o \texttt{select} pela função \texttt{g\_poll} da \texttt{GLib}, que gerencia os eventos da biblioteca e utiliza internamente \texttt{poll} ou \texttt{select}, conforme a plataforma. Portanto, o \textit{loop} de eventos descrito na Seção~\ref{sec:api_and_event_loop} passa a ser gerenciado pela implementação de \texttt{udp\_transport}, e a gerência da conexão ICE ocorre dentro desse \textit{loop}. A Figura~\ref{fig:udp_transport_connection_flow} resume o novo fluxo de conexão com a biblioteca ICE.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=1\textwidth]{fig/implementation/libnice/udp_transport_connection_flow.png}
+    \caption{Diagrama de sequência do novo fluxo de conexão utilizando a biblioteca \texttt{libnice}.}
+    \label{fig:udp_transport_connection_flow}
+\end{figure}
 
 \section{Topologias}
 \label{sec:topologies}
 
-As topologias foram desenvolvidas a fim de realizar a validação das técnicas de hole punching a partir testes dos protocolos abordados na seção \ref{sec:hole_punching_protocols}. 
+As topologias desta seção permitem validar as técnicas de \textit{hole punching} por meio de testes dos protocolos descritos na Seção~\ref{sec:hole_punching_protocols}.
 
-Nas topologias apresentadas nesta seção, os \textit{peers} representam os \textit{gateways} que executam a infraestrutura de comunicação proposta na Seção \ref{sec:protocol_stack}. Os dispositivos e as aplicações locais associados a esses nós não são representados nos diagramas, pois o foco está no transporte entre os \textit{gateways}.
+Nas topologias apresentadas nesta seção, os \textit{peers} representam os \textit{gateways} que implementam a infraestrutura de comunicação proposta na Seção~\ref{sec:protocol_stack}.
 
-\subsection{Topologia Simples para Hole Punching}
+\subsection{Topologia Simples de Hole Punching Direto}
 \label{sec:basic_topology_hole_punching}
 
-A topologia utilizada como base nos testes das técnicas de UDP \textit{hole punching} (vistas na Seção~\ref{sec:udp_hole_punching}) foi baseada em um cenário simples, no qual cada \textit{peer} vive abaixo de um único NAT. Este cenário é capaz de exercitar o funcionamento do \textit{hole punching} em si, sem depender completamente do correto funcionamento dos NATs. Isto também simplifica as etapas de configuração dos ambientes de simulação para cada caso.
+A topologia base dos testes de \textit{hole punching} UDP (Seção~\ref{sec:udp_hole_punching}) corresponde a um cenário simples, no qual cada \textit{peer} está atrás de um único NAT. Esse cenário permite avaliar o \textit{hole punching} de forma isolada, com dependência mínima do comportamento dos NATs. Ele também simplifica a configuração dos ambientes de simulação para cada caso.
 
-Esta topologia, que pode ser vista na Figura~\ref{fig:basic_topology}, viabiliza os testes efetivos de \textit{hole punching}. Entretanto, ela não foi projetada pensando em simulações para uso do ICE; apesar disso, também pode ser reaproveitada para esse propósito, bastando atribuir uma função específica ao servidor. No modelo original desta topologia, o servidor não possui função alguma, e os \textit{peers} já conhecem previamente os IPs públicos um do outro. Além disso, como já visto anteriormente (na Seção~\ref{sec:chownat}), dado que o endereço é necessariamente pré-conhecido, as portas públicas (que também fazem parte do endereço público) precisam ser traduzidas exatamente para a porta de origem (porta na qual a \textit{socket} fez a operação de \textit{bind}), de forma que não seja necessário nenhum mecanismo de predição de portas, descrito na Seção~\ref{sec:udp_hole_punching_edm}.
+Essa topologia, apresentada na Figura~\ref{fig:basic_topology}, permite testar o \textit{hole punching} de forma efetiva. No modelo original, o servidor não desempenha nenhuma função, e cada \textit{peer} conhece previamente o endereço IP público do outro. Além disso, como o endereço público, incluindo a porta, precisa ser conhecido de antemão (Seção~\ref{sec:chownat}), o NAT deve preservar a porta de origem. Ou seja, a porta pública do mapeamento deve coincidir com a porta local à qual o \textit{socket} foi associado na operação de \textit{bind}. Assim, nenhum mecanismo de predição de portas (Seção~\ref{sec:udp_hole_punching_edm}) é necessário. A topologia não foi projetada para simulações com o ICE, mas pode ser reaproveitada para esse propósito com a atribuição de uma função específica ao servidor.
 
 \begin{figure}[ht]
     \centering
@@ -33,73 +312,45 @@ Esta topologia, que pode ser vista na Figura~\ref{fig:basic_topology}, viabiliza
 \subsection{Topologia para Hole Punching Utilizando o Protocolo ICE}
 \label{sec:ice_topology}
 
-Nesta topologia, os roteadores possuem as mesmas responsabilidades e configurações de NATs  como esperado pelo próprio intuito de uso do ICE de forma a reaproveitar dispositivos já existentes sem que haja a necessidade de alteração destes. Entretanto, os \textit{peers} e o servidor (Server da Figura \ref{fig:basic_topology} obterão novas responsabilidades associas ao processo de estabelecimento de candidatos ICE.
+Nesta topologia, os roteadores mantêm as mesmas funções e configurações de NAT da topologia anterior. Essa escolha é coerente com o propósito do ICE, que opera sobre a infraestrutura de rede existente, sem exigir alterações nos NATs. Os \textit{peers} e o servidor (\textit{Server} na Figura~\ref{fig:basic_topology}), entretanto, assumem novas responsabilidades no processo de obtenção e estabelecimento de candidatos ICE.
 
-Os \textit{peers} serão incumbidos da responsabilidades associadas a obtenção de candidatos ICE, Essa obtenção, como visto anteriormente na Seção \ref{sec:ice} é possível a partir do protocolo STUN, do protocolo TURN, IPs das interfaces locais, e também IPs descobertos durante a fase dos \textit{connectivity checks}. O \citep{rfc8838} também descreve que estes candidatos não estão limitados a esse escopo e também podem ser obtidos por outros meios. A partir desta obtenção de candidatos, os \textit{peers} também terão a responsabilidade de trocar os IPs candidatos entre si a partir de um servidor de sinalização, que, como descrito anteriormente na Seção \ref{sec:ice}, não faz parte da espectativa do próprio protocolo, portanto uma solução genérica pode ser utilizada (servidor MQTT, servidor HTTP/WebSockets, etc...). E como responsabilidade final, estes \textit{peers} também precisarão realizar os \textit{connectivity checks} do ICE afim de encontrar um possível candidato para a comunicação.
+Os \textit{peers} são responsáveis pela obtenção dos candidatos ICE. Conforme a Seção~\ref{sec:ice}, os candidatos podem corresponder aos endereços das interfaces locais (\textit{host}), a endereços refletidos obtidos via STUN (\textit{server reflexive}), a endereços de \textit{relay} alocados via TURN (\textit{relayed}) e a endereços descobertos durante as verificações de conectividade (\textit{peer reflexive}). \citet{rfc8838} acrescenta que a obtenção de candidatos não se limita a esses mecanismos. Após a obtenção, os \textit{peers} trocam seus candidatos por meio de um servidor de sinalização. Como descrito na Seção~\ref{sec:ice}, o ICE não especifica o mecanismo de sinalização, o que permite o uso de soluções genéricas, como um servidor MQTT ou um servidor HTTP/WebSocket. Por fim, os \textit{peers} executam as verificações de conectividade do ICE para selecionar um par de candidatos para a comunicação.
 
-O servidor, nesta topologia, obterá as responsabilidades faltantes para a conclusão do protocolo ICE, portanto este servidor será responsável pela gerência de um servidor STUN, um servidor TURN, e também um servidor de sinalização, a fim de prover os serviços necessários para realização de testes de funcionalidade sobre a implementação proposta entre os demais protocolos.
+O servidor assume as demais funções necessárias ao ICE e executa um servidor STUN, um servidor TURN e um servidor de sinalização. Esses serviços permitem realizar testes de funcionalidade da implementação proposta e dos demais protocolos.
 
-A topologia continua a mesma, entretanto as responsabilidades aumentam e são dispostas como vistas na Figura \ref{fig:ice_topology}.
+A topologia física permanece a mesma da Figura~\ref{fig:basic_topology}, mas as responsabilidades de cada nó aumentam, conforme mostra a Figura~\ref{fig:ice_topology}.
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.8\textwidth]{fig/implementation/topologies/ice_topology.png}
-    \caption{Topologia para realização de \textit{hole punching} utilizando o protoclo ICE.}
+    \caption{Topologia para realização de \textit{hole punching} utilizando o protocolo ICE.}
     \label{fig:ice_topology}
 \end{figure}
 
-\section{Ambientes de Simulação}
+\section{Ambientes Experimentais}
 \label{sec:simulation_environments}
 
-Para a validação das técnicas de \textit{hole punching} utilizando os protocolos propostos na Seção~\ref{sec:hole_punching_protocols}, diferentes ambientes de simulação de rede foram avaliados antes da definição da topologia final de testes (vista na Seção~\ref{sec:topologies}).
-
+Esta seção descreve os ambientes experimentais utilizados para validar as técnicas de \textit{hole punching} com os protocolos descritos na Seção~\ref{sec:hole_punching_protocols}: dois ambientes de simulação, o GNS3 e os \textit{Linux Network Namespaces}, e uma infraestrutura física.
 
 \subsection{Ambiente de Simulação GNS3}
-
-O GNS3, ou \textit{Graphical Network Simulator-3}, disponível em \citep{gns3}, é um simulador amplamente utilizado para simulação de redes, permitindo a emulação de dispositivos de rede virtualizados em topologias complexas.
-
-Este simulador foi o primeiro a ser utilizado, devido à familiaridade e ao uso prévio dele em projetos anteriores voltados à universidade. Além disso, a interface gráfica e a integração com o \textit{Wireshark} (ferramenta utilizada para \textit{sniffing} de rede) providas por ele facilitam a análise visual dos pacotes transmitidos, auxiliando na verificação do correto funcionamento das transmissões.
-
-Entretanto, esta ferramenta deixou de ser utilizada à medida que os testes dos protocolos se tornaram mais intensos, devido à sua limitação de integração com o \textit{build system} CMake (ferramenta geradora de sistemas de \textit{build}) desenvolvido para este trabalho, dificultando a automação de testes de regressão.
-
-\subsubsection{Máquinas Virtuais Utilizadas no GNS3}
-
-Para os testes utilizando o GNS3, foram utilizadas máquinas virtuais para simular cada \textit{peer}, NAT e servidor das topologias propostas. Os componentes virtualizados utilizados foram os seguintes:
-
-\begin{itemize}
-    \item \textbf{Debian 12.6:} Máquina Debian utilizada para roteadores genéricos e \textit{hosts}, a fim de facilitar a execução de \textit{scripts} e a instalação de bibliotecas;
-    \item \textbf{Cisco IOSv 15.9:} Máquina Cisco utilizada como roteador para a simulação e configuração de NATs;
-    \item \textbf{NAT:} Componente nativo do GNS3 que simula um NAT de rede. Este componente não é utilizado como NAT alvo do \textit{hole punching}, mas sim para distribuir acesso à internet aos dispositivos internos da topologia, dado que alguns deles necessitam de internet para a instalação de bibliotecas.
-\end{itemize}
-
-\subsubsection{Configuração da Topologia Simples para Hole Punching no GNS3}
+\label{sec:gns3}
 \label{sec:basic_topology_gns3}
 
-A topologia configurada pode ser vista na Figura~\ref{fig:basic_topology_gns3}. Ela utiliza dois roteadores com NAT de ``mapeamento espelhado'' de porta origem, dois clientes e um servidor (utilizado apenas como \textit{stub} neste momento). Este ``mapeamento espelhado'' se refere ao mapeamento citado na Seção~\ref{sec:basic_topology_hole_punching}, no qual a porta pública é traduzida para a porta de origem. Isso permite que as portas traduzidas sejam conhecidas previamente; do contrário, não seria possível realizar \textit{hole punching} sem a existência de um servidor como o servidor STUN.
+O GNS3 (\textit{Graphical Network Simulator-3}) \citep{gns3} é uma ferramenta de simulação de redes que emula dispositivos virtualizados em topologias complexas. O GNS3 foi o primeiro ambiente utilizado, devido à experiência prévia com a ferramenta em projetos na universidade e à sua integração com o \textit{Wireshark}, que facilita a análise visual dos pacotes transmitidos. Na topologia configurada (Figura~\ref{fig:basic_topology_gns3}), máquinas virtuais Debian~12.6 representam os \textit{peers}, e roteadores Cisco IOSv~15.9 implementam os NATs com ``mapeamento espelhado'', isto é, com preservação da porta de origem (Seção~\ref{sec:basic_topology_hole_punching}). Um roteador adicional representa o ISP e atua apenas como servidor DHCP para os roteadores NAT na rede \texttt{10.0.0.0/24}. O componente NAT nativo do GNS3 provê acesso à internet para a instalação de bibliotecas e não participa do \textit{hole punching}.
 
-\begin{figure}[ht]
+A ferramenta deixou de ser utilizada à medida que os testes dos protocolos se intensificaram, devido à sua limitada integração com o sistema de \textit{build} baseado em CMake desenvolvido para este trabalho, o que dificultava a automação de testes de regressão. Por isso, os resultados apresentados no Capítulo~\ref{chap:results} não incluem análises nesse ambiente.
+
+\begin{figure}[!ht]
     \centering
-    \includegraphics[width=0.6\textwidth]{fig/implementation/gns3/basic_topology_gns3.png}
+    \includegraphics[width=0.5\textwidth]{fig/implementation/gns3/basic_topology_gns3.png}
     \caption{Topologia simples desenvolvida no GNS3.}
     \label{fig:basic_topology_gns3}
 \end{figure}
 
-Nesta topologia, todos os \textit{hosts} utilizam o sistema operacional Debian, e cada um deles atua como um \textit{peer} do cenário de \textit{hole punching}. Os NATs são roteadores Cisco IOSv, cada um configurado com um IP público fixo e com mapeamento de portas espelhado em relação à porta dos pacotes de saída, como descrito anteriormente. O ISP é um roteador que, nesta topologia, atua apenas como \textit{stub}, sem participar do \textit{hole punching}, servindo somente como servidor DHCP para os roteadores NAT em uma rede \texttt{10.0.0.0/24}. Já o componente \texttt{NAT1} serve apenas para prover acesso à internet a todos os \textit{peers} abaixo dele.
-
-\begin{comment}
-    
-\subsubsection{Configuração da Topologia ICE para Hole Punching no GNS3}
-
-Escrever quanto tiver a implementação
-
-\cgk{Implementar a configuração, mas acho que não vale a pena perder tempo}
-
-\end{comment}
-
 \subsection{Linux Network Namespaces}
 \label{sec:linux_network_namespaces}
 
-Os \textit{Linux Network Namespaces} (vistos em \citep{linux-network-namespaces}) permitem configurar ambientes de teste na máquina local, utilizando apenas interfaces virtualizadas na comunicação. Os \textit{namespaces} compartilham o mesmo \textit{kernel}, mas possuem isolamento dos recursos de rede, como pode ser visto na Figura~\ref{fig:namespaces_isolation}. Isso facilita a execução de testes de \textit{debug} e de regressão, permitindo a análise de alterações no código que afetam mais do que uma única biblioteca. Este mecanismo foi adotado como principal ambiente de testes devido à sua praticidade.
+Os \textit{Linux Network Namespaces} \citep{linux-network-namespaces} permitem configurar ambientes de teste na máquina local, apenas com interfaces virtuais. Os \textit{namespaces} compartilham o mesmo \textit{kernel}, mas cada um possui recursos de rede isolados, como interfaces, tabelas de roteamento e regras de \textit{firewall} (Figura~\ref{fig:namespaces_isolation}). Este trabalho adotou esse mecanismo como principal ambiente de testes, devido à sua praticidade e à facilidade de integração com testes de regressão.
 
 \begin{figure}[ht]
     \centering
@@ -108,16 +359,16 @@ Os \textit{Linux Network Namespaces} (vistos em \citep{linux-network-namespaces}
     \label{fig:namespaces_isolation}
 \end{figure}
 
-Entretanto, a configuração nativa desses \textit{namespaces} é feita com o comando \texttt{ip}, que não é trivial de utilizar dado o grande conjunto de configurações possíveis. Por exemplo, para configurar um NAT, além de configurar as interfaces virtuais, é necessário um outro tipo de configuração, feita com o programa \texttt{iptables}. Além disso, a documentação é extensa e não existem perfis pré-configurados para tipos específicos de NAT, como o NAT com EIM ou o NAT com ``mapeamento espelhado''. Por isso, foi escolhido utilizar a biblioteca PatchBay \citep{patchbay}, desenvolvida em Rust, que permite a configuração completa do ambiente a partir de perfis de configuração previamente definidos. Isso facilita os testes e garante o comportamento esperado de cada configuração. Portanto, este trabalho utiliza este \textit{framework} como base das configurações de rede dos \textit{Linux Network Namespaces}.
+Entretanto, a configuração nativa desses \textit{namespaces} utiliza o comando \texttt{ip}, cuja utilização não é trivial devido ao grande número de opções. Por exemplo, a configuração de um NAT exige, além das interfaces virtuais, regras definidas com o programa \texttt{iptables}. Além disso, a documentação é extensa e não há perfis pré-configurados para tipos específicos de NAT, como o NAT com EIM ou o NAT com ``mapeamento espelhado''. Por isso, este trabalho utiliza a biblioteca \texttt{PatchBay} \citep{patchbay}, desenvolvida em Rust, que configura o ambiente completo a partir de perfis previamente definidos. Esse recurso facilita os testes e garante o comportamento esperado de cada configuração. Assim, o PatchBay serve de base para as configurações de rede dos \textit{Linux Network Namespaces}.
 
-Nesse ambiente, os nós representam os extremos da comunicação entre \textit{gateways}, sem reproduzir o hardware de dispositivos IoT. Como os \textit{namespaces} compartilham recursos da mesma máquina, os resultados devem ser interpretados de acordo com essa configuração. Os testes nesse ambiente permitem controlar as condições de rede e verificar o funcionamento da integração, enquanto eventual avaliação em hosts separados constitui outro ambiente experimental.
+Como os \textit{namespaces} compartilham os recursos da mesma máquina, os resultados de desempenho não refletem enlaces físicos e devem ser interpretados sob essa condição. Os testes nesse ambiente permitem controlar as condições de rede e verificar o funcionamento da integração. A avaliação em \textit{hosts} separados constitui outro ambiente experimental (Seção~\ref{sec:physical_infrastructure}).
 
-\subsubsection{Topologia Simples para Hole Punching Utilizando Linux Network Namespaces}
+\subsubsection{Topologia para Hole Punching Direto Utilizando Linux Network Namespaces}
 \label{sec:basic_topology_network_namespaces}
 
-A topologia simples utilizando \textit{Linux Network Namespaces} é muito parecida com a vista na Figura~\ref{fig:basic_topology_gns3}. A diferença é que o PatchBay não permite a definição manual do IP de WAN dos roteadores NAT; em vez disso, cada roteador recebe um endereço fornecido pelo ISP (como visto na Listagem \ref{lst:patchbay_isp_config}, que neste caso pertence à mesma rede \texttt{10.0.0.0/24}. Cada roteador também atribui endereços IP à sua rede local (LAN) e configura um NAT do tipo \textit{Moderate}.
+A topologia com \textit{Linux Network Namespaces} é semelhante à da Figura~\ref{fig:basic_topology_gns3}. A diferença é que o PatchBay não permite definir manualmente o IP de WAN dos roteadores NAT. Em vez disso, cada roteador recebe um endereço fornecido pelo ISP (Listagem~\ref{lst:patchbay_isp_config}), que neste caso pertence à mesma rede \texttt{10.0.0.0/24}. Cada roteador também atribui endereços IP à sua rede local (LAN) e configura um NAT do tipo \textit{Moderate}.
 
-\begin{lstlisting}[caption={Configuração do ISP no PatchBay.}, label={lst:patchbay_isp_config}]
+\begin{lstlisting}[float=htbp, caption={Configuração do ISP no PatchBay.}, label={lst:patchbay_isp_config}]
     let isp = lab
         .add_router("isp")
         .preset(RouterPreset::Public)
@@ -129,15 +380,15 @@ A topologia simples utilizando \textit{Linux Network Namespaces} é muito pareci
 O PatchBay \citep{patchbay} fornece quatro tipos de NAT para IPv4, além de um modo customizável (\textit{Custom}), de variações para IPv6 e de \textit{firewalls}:
 
 \begin{itemize}
-    \item \textbf{None:} Sem NAT, ou seja, um roteador sem qualquer tradução de endereços;
-    \item \textbf{Open:} Implementa EIM e EIF, descritos na Seção~\ref{sec:nat_classification_by_translation_behavior}, correspondendo ao \textit{Full-Cone NAT};
-    \item \textbf{Moderate:} Implementa EIM e APDF, correspondendo ao \textit{Port-Restricted Cone NAT}. Este é o comportamento típico de roteadores domésticos;
-    \item \textbf{Strict:} Implementa EDM (\textit{Endpoint-Dependent Mapping}, com portas aleatórias) e APDF, correspondendo ao \textit{Symmetric NAT}. Quando ambos os \textit{peers} estão atrás desse tipo de NAT, o \textit{hole punching} direto não é possível, sendo necessário um \textit{relay}.
+    \item \textbf{None:} roteador sem NAT, ou seja, sem tradução de endereços;
+    \item \textbf{Open:} implementa EIM e EIF, descritos na Seção~\ref{sec:nat_classification_by_translation_behavior}, e corresponde ao \textit{Full-Cone NAT};
+    \item \textbf{Moderate:} implementa EIM e APDF e corresponde ao \textit{Port-Restricted Cone NAT}, comportamento típico de roteadores domésticos;
+    \item \textbf{Strict:} implementa EDM (\textit{Endpoint-Dependent Mapping}), com portas aleatórias, e APDF, e corresponde ao \textit{Symmetric NAT}. Quando ambos os \textit{peers} estão atrás desse tipo de NAT, o \textit{hole punching} direto não é viável, e a comunicação exige um \textit{relay}.
 \end{itemize}
 
-Portanto, a topologia implementada utiliza, nos roteadores (clients), o modo \textit{Moderate} como visto na Listagem \ref{lst:patchbay_client_config}, com a alteração de algumas regras de mapeamento para manter o ``mapeamento espelhado'', de modo que a porta traduzida seja, por padrão, a porta de origem do \textit{socket} (definida via \textit{bind}). Desta forma, os \textit{peers} podem permanecer em uma mesma rede local, que neste caso é a mesma vista na Figura~\ref{fig:basic_topology_gns3}, \texttt{192.168.80.0/24}.
+Os roteadores dos \textit{peers} utilizam o modo \textit{Moderate} (Listagem~\ref{lst:patchbay_client_config}), com alterações em algumas regras de mapeamento para manter o ``mapeamento espelhado''. Assim, a porta traduzida corresponde, por padrão, à porta de origem do \textit{socket}, definida na operação de \textit{bind}. As LANs dos dois roteadores utilizam o mesmo prefixo da Figura~\ref{fig:basic_topology_gns3}, \texttt{192.168.80.0/24}.
 
-\begin{lstlisting}[caption={Configuração de roteadores no PatchBay.}, label={lst:patchbay_client_config}]
+\begin{lstlisting}[float=htbp, caption={Configuração de roteadores no PatchBay.}, label={lst:patchbay_client_config}]
     let router_a = lab
         .add_router("router_a")
         .preset(RouterPreset::Home)
@@ -149,341 +400,35 @@ Portanto, a topologia implementada utiliza, nos roteadores (clients), o modo \te
         .await?;
 \end{lstlisting}
 
-\subsubsection{Configuração da Topologia ICE para Hole Punching utilizando Linux Network Namespaces}
+\subsubsection{Configuração da Topologia ICE para Hole Punching Utilizando Linux Network Namespaces}
 \label{sec:ice_topology_network_namespaces}
 
-A topologia para ICE mantém a disposição dos nós, o endereçamento das redes e o perfil NAT \textit{Moderate} utilizados na topologia básica, descrita na Seção~\ref{sec:basic_topology_network_namespaces}. As regras adicionais de tradução de portas, entretanto, dependem do cenário: os testes sem ICE preservam a porta de origem para permitir o conhecimento prévio dos endpoints públicos; os testes com ICE utilizam a descoberta desses endpoints, incluindo um caso com remapeamento explícito de portas, apresentado na Seção~\ref{sec:experimental_scenarios}. Entretanto, como visto na Seção~\ref{sec:ice_topology}, tanto o servidor quanto os \textit{peers} assumem novas responsabilidades. Na configuração da topologia em si, a configuração dos \textit{peers} não muda, dado que a biblioteca ICE estará integrada ao mesmo \textit{script} já executado anteriormente em cada \textit{peer}. O servidor, entretanto, passará a executar \textit{scripts} que vão além de sua funcionalidade anterior de apenas fornecer o serviço de DHCP.
+A topologia para ICE mantém a disposição dos nós, o endereçamento das redes e o perfil \textit{NAT Moderate} da topologia básica, descrita na Seção~\ref{sec:basic_topology_network_namespaces}. As regras adicionais de tradução de portas, entretanto, dependem do cenário. Os testes sem ICE preservam a porta de origem para permitir o conhecimento prévio dos \textit{endpoints} públicos. Os testes com ICE utilizam a descoberta desses \textit{endpoints}, incluindo um caso com remapeamento explícito de portas, apresentado na Seção~\ref{sec:experimental_scenarios}. Conforme a Seção~\ref{sec:ice_topology}, o servidor e os \textit{peers} assumem novas responsabilidades. A configuração dos \textit{peers} não muda, pois a biblioteca ICE é integrada ao mesmo \textit{script} executado anteriormente em cada \textit{peer}. O servidor, por sua vez, passa a executar \textit{scripts} que vão além da função anterior de fornecer apenas o serviço de DHCP.
 
-O servidor passa a assumir duas novas responsabilidades. A primeira está associada ao fornecimento de serviços STUN e TURN, permitindo a cada \textit{peer} a obtenção de mais candidatos públicos a partir desses protocolos. Já a segunda está associada ao fornecimento de um serviço de sinalização, de forma que os \textit{peers} possam trocar candidatos entre si a fim de realizar suas verificações de conectividade.
+O servidor assume duas novas responsabilidades. A primeira é o fornecimento dos serviços STUN e TURN, que permitem a cada \textit{peer} obter candidatos adicionais, do tipo \textit{server reflexive} (via STUN) e \textit{relayed} (via TURN). A segunda é o fornecimento de um serviço de sinalização, por meio do qual os \textit{peers} trocam candidatos para realizar as verificações de conectividade.
 
-Para o fornecimento dos serviços STUN e TURN, foi utilizada a biblioteca \texttt{coturn} \citep{coturn}, responsável por implementar serviços coerentes com os RFCs \citep{rfc8489} e \citep{rfc8656}, que trazem as informações mais atualizadas sobre os protocolos e obsoletam comportamentos antigos, tornando-se, portanto, uma solução adequada para a validação da implementação em questão.
+Os serviços STUN e TURN são fornecidos pelo servidor \texttt{coturn} \citep{coturn}, que implementa as especificações vigentes desses protocolos, o RFC~8489 \citep{rfc8489} e o RFC~8656 \citep{rfc8656}. Esses documentos tornam obsoletas as versões anteriores (RFC~5389 e RFC~5766), o que torna o \texttt{coturn} adequado à validação da implementação.
 
-Para o fornecimento do serviço de sinalização, o servidor será responsável por executar um \textit{script} simples que realiza a troca de informações entre os \textit{peers}. Este \textit{script} executa um servidor TCP que ouve em todas as interfaces na porta 5555 e aguarda a conexão dos dois \textit{peers}. Assim que os \textit{peers} se conectam, é iniciada a troca de informações entre eles, contendo os dados sobre os candidatos locais de cada \textit{peer}, obtidos por meio do servidor STUN/TURN ou de outro método, juntamente com as informações necessárias para a autenticação prevista no protocolo ICE.
+Para o serviço de sinalização, o servidor executa um \textit{script} simples que realiza a troca de informações entre os \textit{peers}. Esse \textit{script} executa um servidor TCP que escuta a porta 5555 em todas as interfaces e aguarda a conexão dos dois \textit{peers}. Após a conexão, o servidor encaminha a cada \textit{peer} os candidatos do outro, obtidos por meio do servidor STUN/TURN ou de outro método, juntamente com as credenciais (\textit{username fragment} e senha) que o ICE utiliza para autenticar as verificações de conectividade.
 
 \subsection{Infraestrutura Física Controlada}
-
 \label{sec:physical_infrastructure}
 
-Além do ambiente baseado na biblioteca \texttt{PatchBay}, foi preparada uma infraestrutura com dois computadores e três roteadores físicos da DATACOM. Os roteadores utilizados são do modelo DM956 5GT 1800, os mesmos utilizados anteriormente no projeto com a empresa, como descrito na Seção~\ref{sec:hole_punching_protocols}. O objetivo dessa montagem é exercitar a implementação utilizando interfaces e equipamentos reais de encaminhamento e tradução de endereços, mantendo a organização lógica da topologia ICE descrita na Seção~\ref{sec:ice_topology}.
+Além do ambiente baseado na biblioteca \texttt{PatchBay}, este trabalho utiliza uma infraestrutura com dois computadores e três roteadores físicos da DATACOM, modelo \texttt{DM956 5GT 1800}. Esses roteadores são os mesmos utilizados no projeto com a empresa, descrito no início deste capítulo. O objetivo dessa montagem é exercitar a implementação com interfaces e equipamentos reais de encaminhamento e tradução de endereços, mantendo a organização lógica da topologia ICE descrita na Seção~\ref{sec:ice_topology}.
 
-Um roteador base, com endereço \texttt{10.0.0.1}, fornece a rede \texttt{10.0.0.0/24}, à qual estão conectados o servidor de serviços auxiliares e as interfaces WAN dos dois roteadores NAT. O roteador A utiliza o endereço WAN \texttt{10.0.0.117}, enquanto o roteador B utiliza \texttt{10.0.0.40}. Ambos disponibilizam uma LAN com prefixo \texttt{192.168.80.0/24} e endereço de \textit{gateway} \texttt{192.168.80.1}. Essas LANs são segmentos separados, apesar de utilizarem o mesmo endereçamento. Os \textit{peers} A e B utilizam, respectivamente, os endereços \texttt{192.168.80.100} e \texttt{192.168.80.101}. Esta topologia pode ser vista na Figura~\ref{fig:physical_topology}.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.8\textwidth]{fig/results/physical/physical_topology.png}
-    \caption{Topologia utilizada na simulação física com roteadores da DATACOM.}
-    \label{fig:physical_topology}
-\end{figure}
-
-O primeiro computador acumula duas funções: executar o peer A e hospedar os serviços auxiliares. Sua interface Ethernet conecta o peer A à LAN do roteador A, enquanto a interface Wi-Fi conecta o servidor à rede do roteador base, com endereço \texttt{10.0.0.108}. Nesse servidor, o \texttt{coturn} disponibiliza STUN/TURN por UDP na porta 3478, e o serviço de sinalização utiliza TCP na porta 5555. O segundo computador executa o peer B, conectado à LAN do roteador B.
-
-Para separar as funções executadas no primeiro computador, a interface Ethernet do peer A é movida para um \textit{network namespace} próprio. Esse namespace recebe uma rota padrão pelo roteador A. A separação impede que o acesso ao servidor, hospedado no mesmo computador, seja resolvido diretamente pela pilha de rede local, contornando o roteador NAT. Diferentemente do ambiente PatchBay, nesse caso o namespace isola uma interface física, enquanto o encaminhamento e a tradução de endereços são realizados pelos roteadores externos.
-
-A execução é organizada por um script com papéis distintos para os dois computadores. No papel A, são preparados os serviços auxiliares, o namespace e a aplicação geradora de dados. No papel B, são iniciados o peer remoto e um serviço TCP de echo.
-
-O script também inicia capturas nas interfaces utilizadas pelo peer A, pelo servidor e pelo peer B. Os arquivos PCAP e os registros dos processos são armazenados por execução, permitindo relacionar a negociação ICE, o estabelecimento QUIC e a comunicação entre os gateways. Os resultados obtidos nesse ambiente são apresentados na Seção~\ref{sec:physical_results}.
-
-\section{Protocolos de Comunicação para Hole Punching}
-\label{sec:hole_punching_protocols}
-
-Este trabalho teve origem em um projeto realizado em conjunto com a Datacom, cujo objetivo era viabilizar a comunicação entre dois \textit{peers} com o mínimo de infraestrutura possível. Com o encerramento do projeto, o trabalho passou a ser continuado em caráter acadêmico, no contexto deste TCC.
-
-Inicialmente, o objetivo era transmitir dados TCP, especificamente HTTP, por meio de técnicas de \textit{hole punching}. Dada a complexidade do TCP \textit{hole punching}, vista na Seção~\ref{sec:tcp_hole_punching}, optou-se pelo UDP \textit{hole punching}. Como base, foi utilizado o Chownat, que, além de realizar \textit{hole punching}, é capaz de tunelar dados TCP sobre UDP sem o custo dos pacotes de controle do TCP, permitindo uma comunicação direta e rápida entre os \textit{peers}.
-
-Para a comunicação, foi proposto o uso de um servidor mínimo (\textit{rendezvous server}), responsável pela autenticação e pela troca de endereços IP entre os \textit{peers}, com função semelhante à de um servidor STUN no que diz respeito à descoberta de endereços. Também foi proposto o uso de um protocolo capaz de garantir os requisitos de dependabilidade e segurança descritos na introdução deste trabalho, tendo-se optado pelo QUIC, dada a sua recente expansão e a compatibilidade com os requisitos de transmissão de dados de aplicação do projeto.
-
-A implementação da infraestrutura de servidores foi realizada apenas parcialmente durante o projeto, e pouco foi desenvolvido da comunicação entre dois \textit{peers} utilizando o QUIC. Este trabalho é também uma extensão do trabalho de Ivan [CITAR TCC DO IVAN], que abordou aspectos mais voltados à segurança e aos objetivos por trás da escolha do QUIC como protocolo ideal para os cenários propostos.
-
-\cgk{Citar o TCC do Ivan}
-
-\begin{comment}
-    
-No contexto de dispositivos IoT, que podem gerar grandes volumes de dados, a comunicação P2P é um cenário relevante, como descrito na introdução, principalmente em relação ao uso de banda e à necessidade de um servidor especializado para gerenciar o tráfego, além dos requisitos de dependabilidade e segurança para os usuários.
-
-\cgk{Ver se realmente tem trabalhos de IoT relacionados com QUIC e citar aqui}
-\end{comment}
-
-No cenário IoT adotado neste trabalho, a comunicação externa é realizada pelos gateways, que executam as aplicações integradas ao túnel. O interesse está em interligar essas aplicações quando os gateways se encontram em redes distintas, utilizando os mecanismos de descoberta e seleção de caminhos disponíveis na solução. Os dados dos dispositivos são representados, nos experimentos, por mensagens geradas por aplicações locais.
-
-Nesta seção são apresentadas as implementações e extensões desenvolvidas para viabilizar a comunicação com as técnicas de \textit{hole punching} propostas inicialmente, possibilitando uma comunicação direta entre dois \textit{peers} atrás de um NAT. 
-
-\begin{itemize}
-    \item A Seção \ref{sec:chownat_translation_extension} apresenta uma continuação da implementação desenvolvida durante o projeto;
-    \item A Seção \ref{sec:ossl_quic_for_hole_punching} apresenta uma proposta de uso da biblioteca OpenSSL no modo \textit{threadless} para \textit{hole punching}; 
-\end{itemize}
-
-\subsection{Interface de transporte para hole punching}
-\label{sec:hole_punching_interface}
-
-A interface de transporte para \textit{hole punching} é uma interface criada especificamente para este trabalho, com o intuito de auxiliar a aplicação de múltiplos protocolos de transporte UDP na realização de \textit{hole punching}, independentemente de o protocolo possuir ou não esse recurso de forma nativa. Além disso, esta interface também tem como objetivo habilitar o tunelamento de TCP sobre protocolos de transporte UDP, de modo a transportar pacotes de serviços da camada de aplicação que utilizam TCP sobre protocolos de transporte diferentes.
-
-Esta interface é baseada no Chownat (Seção~\ref{sec:chownat}) e propõe uma abordagem modular desse mesmo protocolo, a fim de permitir reutilizar sua estrutura na aplicação de \textit{hole punching} para outros protocolos, como o QUIC. Como objetivo principal, busca-se permitir o reuso dos componentes do protocolo original (as partes associadas à realização de \textit{hole punching} e ao tunelamento TCP), de forma a permitir apenas ``trocar peças'' e facilitar a integração de outros protocolos.
-
-Esta interface também propõe uma abordagem \textit{threadless}, a partir de uma API baseada em eventos, similar à provida pela \texttt{libwebsockets} \citep{libwebsockets},
-que serviu como inspiração para a API desenvolvida. Esta implementação baseada em eventos utiliza chamadas de sistema por meio da \textit{syscall} \texttt{select}, que permite a integração de múltiplos \textit{sockets} e a espera por novos dados recebidos neles.
-
-Além disso, esta interface também permite um modelo de configuração que possibilita a gerência tanto da configuração quanto do uso de \textit{hole punching}, bem como do uso de tunelamento TCP. Isto é feito de forma prévia ao início real da conexão do protocolo, o que também favorece a arquitetura modular.
-
-\subsubsection{Configuração da interface}
-
-A configuração da interface permite, assim como o próprio Chownat visto anteriormente, a existência de duas sessões: uma sessão UDP e uma sessão TCP, possibilitando o tunelamento.
-
-Cada sessão possui configurações específicas para a devida conexão, como \textit{timeouts} e endereços de origem e destino. Isto permite que uma aplicação que utilize esta interface possa configurá-la previamente a partir de dados obtidos de forma externa, como, por exemplo, a partir do ICE.
-
-A configuração também permite o registro de uma \textit{callback}, que será chamada a cada novo evento, passando como parâmetro o \textit{reason} (motivo) do evento específico.
-
-Para fornecer uma organização baseada no paradigma de orientação a objetos, a configuração também permite que seja escolhida uma implementação específica de protocolo que utilizará a sessão UDP. Isso significa que um novo protocolo UDP que deseje utilizar esta mesma interface precisa apenas implementar um conjunto de funções pré-definidas, simulando o comportamento de uma tabela virtual. Na prática, essa tabela é representada por um conjunto de ponteiros de função, que devem ser implementados por cada implementação de protocolo UDP com interesse em utilizar a interface. A API pública da interface pode ser observada diagrama de blocos visto na Figura \ref{fig:udp_conn_diagram}.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.8\textwidth]{fig/implementation/interface/udp_conn_diagram.png}
-    \caption{Diagrama de blocos da interface genérica de conexão UDP udp\_conn\_t.}
-    \label{fig:udp_conn_diagram}
-\end{figure}
-
-Além disso, esta interface genérica permite que o protocolo UDP que roda sobre ela funcione em dois modos: o modo cliente e o modo servidor. Cada um dos modos possui determinadas funções quando se está fazendo uso do tunelamento TCP. Esses mesmos comportamentos são os vistos na Seção~\ref{sec:chownat} e também serão abordados na próxima seção.
-
-\subsubsection{Fluxo de conexão e hole punching}
-\label{sec:interface_connection_flow_and_hole_punching}
-
-A conexão utilizando esta interface se baseia em três operações diferentes; a ordem dessas operações é o que define se o processo está operando como cliente ou servidor. Portanto, dependendo do modo de operação da interface, essas operações são chamadas em uma ordem diferente. As operações utilizadas nesse processo são:
-
-\begin{enumerate}
-    \item \textbf{Bind TCP:} Responsável pelo vínculo da sessão TCP com o serviço local;
-    \item \textbf{Hole Punching:} Realização de NAT traversal por UDP hole punching;
-    \item \textbf{Conexão UDP:} Processo de conexão do protocolo em si, caso não integrado com \textit{hole punching}.
-\end{enumerate}
-
-Para entender essas diferenças, é importante retomar as etapas de conexão já descritas na Seção~\ref{sec:chownat_connection}. No modo cliente, aguarda-se uma conexão TCP realizada por um outro processo na própria máquina para o serviço desejado, enquanto, no modo servidor, apenas se espera por uma conexão UDP remota. Da mesma forma, após o recebimento da conexão UDP, o cliente inicia o \textit{hole punching}; já o servidor, após completar o \textit{hole punching}, conecta-se ao serviço TCP local. Isto implica uma ordem invertida entre essas duas operações, gerando o fluxo que pode ser visto na Figura~\ref{fig:udp_conn_connection_flow_diagram}:
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.8\textwidth]{fig/implementation/interface/udp_conn_connection_flow_diagram.png}
-    \caption{Diagrama de tempo da interface de conexão UDP \texttt{udp\_conn\_t}.}
-    \label{fig:udp_conn_connection_flow_diagram}
-\end{figure}
-
-Importante destacar que a implementação do protocolo UDP é responsável apenas pelas etapas que envolvem a comunicação externa com o outro \textit{peer}. Ou seja, as comunicações TCP internas ficam gerenciadas diretamente pela própria interface, abstraindo do protocolo a necessidade de conhecimento sobre o funcionamento do tunelamento.
-
-\subsubsection{API e loop de eventos}
-\label{sec:api_and_event_loop}
-
-A API baseada em eventos é uma adição ao protocolo Chownat, permitindo um comportamento reativo, além de possibilitar o uso do protocolo sem que haja tunelamento TCP. Isso faz parte da extensão do protocolo Chownat implementada, descrita mais detalhadamente na Seção~\ref{sec:chownat_translation_extension}.
-
-Existem dois níveis de recebimento de eventos. O primeiro são os eventos indicados pelo sistema operacional à própria interface, para indicar que um novo pacote foi recebido em uma determinada \textit{socket}. Isto é feito por meio da chamada de sistema \textit{select}, que permite a espera em um subconjunto de \textit{sockets}, gerando um evento para a interface e permitindo que ela continue executando a partir dessa chamada. Esta chamada já era utilizada no Chownat, e é um dos principais mecanismos que permite o \textit{hole punching} a partir do envio de pacotes \textit{keep-alive}, como visto na Listagem~\ref{lst:select_pseudocode}.
-
-\begin{lstlisting}[caption={Pseudocódigo do loop de eventos da interface}, label={lst:select_pseudocode}]
-    while (true)
-        ret = select(sockets, ..., timeout)
-        if (ret == TIMEOUT_EXCEEDED)
-            send_keep_alive()
-        else
-            handle_sockets()
-\end{lstlisting}
-
-O outro nível são os eventos recebidos pela própria aplicação. Estes eventos são determinados por cada implementação de protocolo, dado que cada uma pode possuir diferentes tipos de eventos, podendo ser o recebimento de determinada mensagem, de determinado erro, início e fim de conexão, etc. Isso permite que a aplicação possa interferir no fluxo de conexão em determinados momentos, a partir da API pública da interface, que inclui as seguintes ações:
-
-\begin{itemize}
-    \item \textbf{udp\_conn\_send:} Enviar mensagem;
-    \item \textbf{udp\_conn\_recv:} Esperar recebimento de mensagem;
-    \item \textbf{udp\_conn\_disconnect:} Finalizar conexão.
-\end{itemize}
-
-Além desta API pública, existem ainda as funções de criação de conexão, que não são permitidas dentro do \textit{loop} de eventos, sendo elas:
-
-\begin{itemize}
-    \item \textbf{udp\_conn\_init:} Inicializa a interface com determinada implementação;
-    \item \textbf{udp\_connection:} Inicializa a conexão. É o próprio \textit{loop} de eventos; ao entrar nessa função, só sai dela se a conexão for finalizada;
-    \item \textbf{udp\_conn\_deinit:} Desinicializa a interface.
-\end{itemize}
-
-\subsubsection{Tunelamento TCP}
-
-O tunelamento TCP é um dos principais atributos da arquitetura do Chownat, permitindo a conectividade entre \textit{peers} e o reuso de serviços já implementados sobre TCP, com menor \textit{overhead} de comunicação, modularidade dos serviços (pois desacopla, de forma indireta, o protocolo de transporte) e facilidade de migração de serviços baseados em TCP para UDP. Essa facilidade de migração representa uma característica relevante para a proposta deste trabalho, considerando a ampla utilização de protocolos de aplicação baseados em TCP e em arquiteturas cliente-servidor no contexto da Internet das Coisas (IoT), como HTTP e MQTT. Dessa forma, a solução proposta busca facilitar a adoção de uma arquitetura \textit{peer-to-peer} por aplicações existentes, reduzindo a necessidade de modificações nos serviços originalmente desenvolvidos para comunicação sobre TCP.
-
-A interface permite o uso de técnicas de tunelamento de forma transparente à implementação do protocolo, mantendo-o como um atributo opcional para a aplicação que fará uso da interface. Como visto anteriormente na Seção~\ref{sec:chownat}, a conexão TCP ocorre apenas de forma local, e os pacotes produzidos pelo serviço são enviados à interface por meio de uma \textit{socket} TCP vinculada ao serviço em execução, permitindo que segmentos de controle TCP (como ACKs, FIN, SYN) existam apenas localmente, mantendo, para a conexão remota externa, apenas o envio de dados do serviço de aplicação (HTTP, SSH, etc.). Entretanto o protocolo UDP pode transmitir seus próprios pacotes de controle. Quando a aplicação envia uma mensagem para a \textit{socket} vinculada, o \textit{loop} de eventos da interface (visto na Seção~\ref{sec:api_and_event_loop}) é ativado, avisando-a do recebimento da mensagem em uma das \textit{sockets}. É então analisado em qual \textit{socket} o pacote foi recebido: caso seja na \textit{socket} TCP, os dados do pacote são coletados e enviados através da implementação UDP. Ao receber um pacote do \textit{loop} de eventos da interface, caso ele seja UDP, basta retornar os dados à interface, que será responsável por verificar a existência de tunelamento e redirecionar os dados recebidos para a \textit{socket} TCP local, permitindo uma resposta à aplicação. Este fluxo completo pode ser visto na Figura~\ref{fig:udp_conn_tcp_tunneling_diagram}.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=1.0\textwidth]{fig/implementation/interface/udp_conn_tcp_tunneling_diagram.png}
-    \caption{Diagrama de tempo de uma requisição TCP tunelada por UDP utilizando a interface udp\_conn\_t.}
-    \label{fig:udp_conn_tcp_tunneling_diagram}
-\end{figure}
-
-No cenário considerado, a aplicação integrada ao túnel executa no próprio gateway. Ela utiliza uma conexão TCP local para entregar e receber os dados transportados entre os hosts. A obtenção desses dados a partir de sensores, assim como seu encaminhamento a atuadores locais, pertence à aplicação do gateway e não é implementada pelo túnel. Nos experimentos, essas funções são abstraídas por aplicações locais de geração e recepção de mensagens.
-
-\subsection{Tradução e Extensão do Protocolo Chownat}
-\label{sec:chownat_translation_extension}
-
-O protocolo Chownat, como visto anteriormente, é nativo em Perl, disponível em \citep{kamkar2004chownatv07}. Durante o projeto da Datacom descrito no início desta seção, foi escolhido o uso deste protocolo, dado que ele era capaz de suprir as necessidades momentâneas para compreensão e aplicação de técnicas de NAT traversal, assim como pela existência do \textit{hole punching} de forma nativa ao protocolo, além do tunelamento TCP, que permitia o tráfego TCP necessário para as aplicações HTTP do projeto.
-
-Durante o projeto com a Datacom, foi feita uma tradução do protocolo para C e Dart, de forma a manter sua forma nativa de funcionamento, sem extensões e sem modificações, apenas replicação da funcionalidade. Entretanto, a tradução não havia sido feita de forma completa, e possuía diversas limitações, principalmente associadas às etapas de criação, reinício e finalização de conexões. Além disso, por conta do propósito inicial do Chownat possuir apenas tunelamento TCP, não era possível utilizar uma comunicação apenas com UDP.
-
-O objetivo do desenvolvimento de extensões e modificações no próprio Chownat, apesar de este não ser o objetivo principal do trabalho, foi a realização de testes de funcionamento e a generalização da própria interface (vista na Seção~\ref{sec:hole_punching_interface}) para protocolos posteriores, como o QUIC. Portanto, o valor desse desenvolvimento está associado muito mais à garantia de funcionamento do que à real sugestão de uso deste protocolo para qualquer tipo de aplicação posterior, dadas as diversas limitações, como a falta de garantia dos requisitos de dependabilidade (citados na introdução deste trabalho) cruciais na transmissão de dados da comunicação IoT.
-
-\subsubsection{Limitações do Chownat e extensões desenvolvidas}
-\label{sec:chownat_limitations}
-
-O protocolo Chownat possui diversas limitações, principalmente associadas ao seu objetivo original. No momento de seu desenvolvimento (2004) \citep{kamkar2004chownat}, técnicas de NAT traversal ainda estavam sendo exploradas, e o uso de arquiteturas de rede P2P ainda era mal visto, devido ao seu histórico de uso em contextos de pirataria. Portanto, o objetivo principal do Chownat não parece ter sido pensado para o uso contínuo em um dispositivo, mas sim principalmente para provar o funcionamento de técnicas de \textit{hole punching} sobre dispositivos NAT.
-
-Dado que a interface genérica apresentada na Seção~\ref{sec:hole_punching_interface} foi baseada inicialmente no protocolo Chownat, foram propostos alguns mecanismos para generalizar a interface e viabilizar seu uso completo por outros protocolos, o que implica que o próprio Chownat também passa a se beneficiar dessas mudanças. Nem todas as limitações foram solucionadas, principalmente por serem específicas do protocolo, como suas próprias garantias de dependabilidade; ainda assim, parte delas foi resolvida para permitir a realização de testes sobre os recursos da interface. As principais limitações, e o tratamento dado a cada uma, são:
-
-\begin{itemize}
-    \item \textbf{Conexão suporta apenas o envio de 256 pacotes:} existe apenas um único byte de representação de identificador de pacote, portanto existem apenas valores possíveis entre 0 e $2^8-1$ para os identificadores. Optou-se por manter o mesmo cabeçalho do Chownat (Seção~\ref{sec:chownat_protocol}), reinicializando a contagem de pacotes ao atingir o limite; perdas de mais de 256 pacotes consecutivos ainda geram comportamento indefinido, mas essa solução foi preferida a estender o campo para 2 bytes, preservando o formato original do pacote;
-    \item \textbf{Apenas permite comunicação de dados TCP:} o protocolo Chownat funciona apenas tunelando TCP, não sendo possível o envio nativo de dados UDP sem a existência do tunelamento. Com a criação da interface genérica, o tunelamento TCP passou a ser opcional por conexão, permitindo que a aplicação envie dados nativamente, sem depender de uma conexão TCP externa;
-    \item \textbf{Permite apenas uma conexão por aplicação:} ao finalizar a única conexão TCP suportada, o protocolo original entrava em \textit{loop} infinito. Isso foi resolvido com a implementação de um \textit{3-way-handshake} de desconexão, com número máximo de tentativas configurável por conexão, permitindo que, ao finalizar uma conexão TCP, a conexão Chownat também seja finalizada e uma nova conexão possa ser inicializada;
-    \item \textbf{Hole punching exige tradução de porta com ``mapeamento espelhado'':} o \textit{hole punching} do Chownat depende de o mapeamento das portas seguir uma regra específica, traduzindo-as exatamente para a porta de origem vinculada pela \textit{socket} que enviará o pacote UDP. Na prática, alguns NATs assumem esse comportamento, como o NAT simulado pelo PatchBay \citep{patchbay} no modo \textit{Moderate}, mas trata-se de um caso particular, e não de uma regra geral entre implementações de NAT. Este problema foi posteriormente resolvido com a integração da biblioteca ICE, descrita na Seção~\ref{sec:ice_library};
-    \item \textbf{Sem garantias de dependabilidade:} o protocolo não possui qualquer garantia de confiabilidade, integridade, autenticidade e segurança. Esse problema não foi resolvido, dado que o objetivo final é o uso do protocolo QUIC, que oferece nativamente mecanismos de entrega confiável e proteção criptográficare, mantendo-se, portanto, a simplicidade do Chownat para fins exclusivos de teste.
-\end{itemize}
-
-Em síntese, as extensões desenvolvidas não transformam o Chownat em um protocolo pronto para uso em produção, sua limitação mais fundamental, a ausência de garantias de dependabilidade, foi deliberadamente deixada sem solução. O valor desse trabalho de extensão está em ter viabilizado um protocolo funcional e já conhecido como base de testes para a interface genérica proposta neste trabalho, permitindo validar empiricamente as técnicas de \textit{hole punching} antes de aplicá-las a um protocolo com garantias mais robustas, como o QUIC.
-
-\subsection{Uso da Biblioteca OpenSSL para QUIC Hole Punching}
-\label{sec:ossl_quic_for_hole_punching}
-
-Dada a complexidade do protocolo QUIC, como visto anteriormente no Capítulo~\ref{chap:quic}, optou-se por utilizar uma biblioteca para realizar a comunicação entre \textit{peers} utilizando este protocolo. Além disso, o protocolo possui diversas características associadas à segurança, o que contribui como outro fator contrário à implementação própria, de forma a evitar riscos de segurança associados a qualquer falha de implementação.
-
-Dado o objetivo de utilizar uma arquitetura baseada no protocolo Chownat, optou-se por não utilizar uma implementação já existente de QUIC hole punching, pois estas seguem abordagens diferentes, como a realização de alterações no próprio protocolo QUIC, a exemplo da segunda proposta de \citep{draft-seemann-quic-nat-traversal}. Portanto, o objetivo foi utilizar uma biblioteca já implementada e bem estabelecida para a realização da primeira alternativa de QUIC \textit{hole punching} proposta por \citep{draft-seemann-quic-nat-traversal}, que se resume em realizar o \textit{hole punching} previamente, via ICE ou outro método equivalente, seguido da transição para a conexão QUIC sobre o caminho já estabelecido.
-
-Para a implementação do protocolo QUIC, optou-se pela utilização da biblioteca OpenSSL, um projeto de código aberto consolidado no desenvolvimento de soluções criptográficas e protocolos de comunicação segura. A partir da versão 3.2, disponibilizada em novembro de 2023 (como visto por \citep{openssl_quic}), a OpenSSL passou a oferecer suporte nativo a conexões QUIC no lado cliente, posteriormente expandido para o lado servidor na versão 3.5. A escolha dessa biblioteca fundamenta-se na manutenção ativa do projeto, na disponibilidade de documentação oficial e na integração do protocolo QUIC à API SSL já existente, permitindo reutilizar abstrações e mecanismos de comunicação disponibilizados pela biblioteca. Além disso, a biblioteca OpenSSL permite o uso de uma \textit{socket} externa, possibilitando reutilizar uma \textit{socket} que, por exemplo, já tenha passado por \textit{hole punching}, mantendo o caminho aberto para a conexão QUIC, o que é um pré-requisito para o uso da abordagem baseada na arquitetura Chownat com a primeira alternativa proposta por \citep{draft-seemann-quic-nat-traversal}, dado que não há alterações na implementação original do protocolo.
-
-A plataforma de execução considerada é o \textit{host} que representa o \textit{gateway}. A escolha das bibliotecas prioriza os recursos necessários à integração e à avaliação do transporte. O trabalho não estabelece requisitos mínimos de execução nem caracteriza o consumo dessas dependências em dispositivos IoT com recursos limitados.
-
-\subsubsection{Configuração e conexão do protocolo QUIC}
-
-Para a configuração, a implementação do protocolo sobre a interface expõe parte da API da OpenSSL; portanto, nem todos os recursos disponibilizados estão acessíveis, e a implementação funciona mais como um \textit{wrapper}, adicionando algumas configurações à API que simplificam o uso para o usuário. Esta implementação \textit{wrapper} foi denominada com o nome ``ossl\_quic''. O usuário poderá configurar, tanto para o cliente quanto para o servidor, as suítes de criptografia disponibilizadas pela OpenSSL para o TLS 1.3, que é o único protocolo de criptografia disponível para a comunicação QUIC.
-
-A implementação da OpenSSL é baseada em contextos, e cada contexto permite uma série de configurações diferentes. As configurações para cliente e servidor diferem, principalmente por não estar sendo utilizada a variante de mTLS (\textit{Mutual Transport Layer Security}), responsável pela garantia de autenticidade tanto do servidor quanto do cliente. Nos experimentos, foi utilizado um certificado autoassinado e a validação do certificado pelo cliente foi desabilitada. Essa configuração permite o estabelecimento da conexão cifrada, mas não verifica a identidade do servidor remoto. Seu uso foi restrito aos testes e é desaconselhado em ambientes de produção. Em ambientes de produção, a validação do certificado deve estar habilitada, com uma configuração de confiança adequada para verificar a identidade do servidor remoto.
-
-Além disso, apesar de não ter sido abordado no Capítulo~\ref{chap:quic}, o QUIC também permite a configuração de um protocolo de aplicação a partir da ALPN (\textit{Application Layer Protocol Negotiation}), a fim de definir um protocolo acordado para uso durante a negociação da conexão. Neste caso, essa configuração não é estritamente necessária, pois o objetivo é apenas o transporte de dados genéricos, não associados a um protocolo específico; para isso, utiliza-se apenas um nome arbitrário, escolhido como sendo ``osslquic''.
-
-Assim como no Chownat, esta etapa inicial inicializa a \textit{socket} UDP, vinculando-a a um endereço específico, da mesma forma descrita na Seção~\ref{sec:chownat}. O diagrama de tempo desta configuração pode ser visto na Figura~\ref{fig:ossl_quic_configuration}.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.8\textwidth]{fig/implementation/ossl_quic/ossl_quic_configuration_time_diagram.png}
-    \caption{Diagrama de tempo da configuração do QUIC da OpenSSL sobre a interface.}
-    \label{fig:ossl_quic_configuration}
-\end{figure}
-
-\subsubsection{Processo de hole punching e conexão}
-
-O processo de \textit{hole punching} da implementação ``ossl\_quic'' segue o mesmo padrão visto no Chownat: o objetivo central é a realização do \textit{hole punching} de forma prévia à conexão QUIC, implementando assim, de forma parcial, a primeira proposta descrita por \citep{draft-seemann-quic-nat-traversal}. Na prática, este \textit{hole punching} pode ser realizado utilizando o próprio ICE, como descrito na Seção~\ref{sec:ice_library}.
-
-Após a realização do \textit{hole punching} por si só, inicia-se a conexão QUIC. Isto implica a implementação da etapa opcional de conexão UDP, descrita na Seção~\ref{sec:interface_connection_flow_and_hole_punching} e ilustrada na Figura~\ref{fig:udp_conn_connection_flow_diagram}. Para a realização desta operação, é primeiro necessário executar uma operação interna da implementação, chamada por este trabalho de \textit{pre connect}. Além disso, é relevante relembrar que não é necessário realizar o descarte de pacotes manualmente, pois, como visto por \citep{rfc9000}, pacotes \texttt{Initial} recebidos pela \textit{engine} do QUIC que possuam tamanho menor que 1200 bytes já são descartados automaticamente por ela.
-
-A \textit{pre connect} é uma operação realizada antes da conexão, como o próprio nome sugere, sendo responsável por criar uma nova conexão SSL (nome dado às conexões da OpenSSL), posteriormente utilizada para realizar a conexão QUIC. Esta operação executa três ações principais: cria a conexão (ou \textit{listener}, no caso do servidor); inicializa cada um desses objetos em seu devido estado; e vincula o FD (\textit{file descriptor}) correspondente, configurando a conexão do cliente como cliente e a do servidor como \textit{listener}. Além disso, no lado do cliente, é chamada a função \texttt{connect} da POSIX, responsável por vincular uma \textit{socket} UDP a um endereço remoto, sem necessariamente realizar uma conexão (diferentemente do que ocorreria com TCP). Já no lado do servidor, a \textit{socket} é configurada inicialmente como bloqueante, para que o servidor aguarde pela própria conexão QUIC.
-
-Durante a conexão, o QUIC no modo servidor apenas aguarda, com um \texttt{accept}, até receber uma conexão externa, enquanto no modo cliente é iniciada uma operação de conexão utilizando a biblioteca OpenSSL. Esta operação de conexão realiza as etapas descritas na Seção~\ref{sec:quic_connection_steps}.
-
-\subsubsection{Gerência da conexão}
-
-A gerência da conexão ocorre da mesma forma que a vista no Chownat, na Seção~\ref{sec:chownat}, através do uso de \textit{keep-alives} e do envio de mensagens por chamadas \texttt{send} e \texttt{recv}, além da gerência do tunelamento TCP já discutida anteriormente. Entretanto, por conta de a \textit{engine} QUIC provida pela OpenSSL ser mais elaborada do que um protocolo simples como o Chownat, foi necessária uma extensão da interface descrita na Seção~\ref{sec:hole_punching_interface}, de forma a suportar possíveis comportamentos da implementação do protocolo. Esta extensão da interface incluiu o processamento de possíveis eventos, em conjunto com o processamento de possíveis dados pendentes do protocolo.
-
-O processamento de eventos é necessário dado que a interface é \textit{threadless}, como visto anteriormente na Seção~\ref{sec:hole_punching_interface}. Isto implica que eventos assíncronos, como \textit{timeouts} ou o tratamento do recebimento e envio de pacotes de controle, precisam ser processados explicitamente pela própria interface. Como descrito por \citep{openssl_ssl_handle_events}, isso não seria necessário caso a biblioteca estivesse configurada para o modo de assistência por \textit{threads}, já que, nesse modo, a \textit{thread} de controle da biblioteca seria periodicamente responsável pelo tratamento desses eventos. Estes eventos também são gerenciados nas chamadas de \textit{read} e \textit{write}, que operam em modo bloqueante apenas dur103ante a etapa de conexão, sendo não bloqueantes em todos os demais momentos. Importante destacar que, mesmo no modo bloqueante, ainda é necessário o tratamento de eventos quando as chamadas de \textit{read} e \textit{write} ocorrem apenas após longos períodos de tempo.
-
-O processamento de dados pendentes, por sua vez, decorre de um comportamento específico da biblioteca OpenSSL. Ao receber um conjunto de pacotes QUIC, seja através do processamento de eventos, seja a partir de operações de \textit{read}, a biblioteca armazena esses pacotes em um \textit{buffer} interno de sua própria implementação, deixando dados pendentes de leitura que, no entanto, não são mais lidos diretamente da \textit{socket}, e sim da própria biblioteca. Na abordagem original do Chownat, a espera por dados dependia inteiramente da existência de dados na \textit{socket}, verificada pelo \textit{loop} de eventos. Ao utilizar a biblioteca QUIC, entretanto, essa mesma lógica de espera na \textit{socket} passa a ser insuficiente: a \textit{socket} é considerada vazia assim que a OpenSSL a esvazia internamente, mesmo que outros pacotes tenham chegado e sido armazenados no \textit{buffer} interno da biblioteca, ainda pendentes de processamento. Por esse motivo, também se faz necessário o processamento desses dados pendentes na própria implementação interna da interface.
-
-Além disso, ao ser adicionado o processamento de eventos, uma segunda dependência temporal passa a existir na interface. Inicialmente, a única dependência temporal era o \textit{timeout} de atividade nas \textit{sockets}, controlado pela chamada de sistema \textit{select}; com a extensão, passa a existir também o \textit{timeout} para a ocorrência de eventos internos, gerenciado pela própria implementação da OpenSSL. Isto implica que o tempo de espera do \textit{select} pode precisar ser mais curto, em função da necessidade de tratar um evento interno do protocolo antes do próximo \textit{keep-alive}.
-
-A forma como isso foi resolvido consiste em manter um ponto de referência de inatividade, atualizado sempre que ocorre atividade na \textit{socket}. A cada iteração, os dois \textit{timeouts} são comparados, e o menor entre eles é utilizado como tempo de espera do \textit{select}. Ao ocorrer um \textit{timeout} do \textit{select}, verifica-se se o ponto de inatividade já foi atingido ou ultrapassado: em caso afirmativo, o \textit{timeout} ocorreu por inatividade, e um \textit{keep-alive} é enviado para manter o mapeamento do NAT. Caso contrário, o \textit{timeout} foi causado pelo \textit{timeout} interno de eventos, mais curto; nesse caso, o \textit{loop} retorna ao início e processa os eventos e pacotes pendentes antes de aguardar novamente pelo próximo pacote no \textit{select}.
-
-Desta forma, o fluxo visto previamente na Figura~\ref{fig:udp_conn_tcp_tunneling_diagram} recebe algumas alterações, de forma a se manter portável para bibliotecas com certos requisitos não exigidos nem tratados anteriormente pelo Chownat, devido à sua simplicidade. Isto resulta em um fluxo com os passos vistos na Figura~\ref{fig:udp_conn_additional_methods}.
+Um roteador base, com endereço \texttt{10.0.0.1}, fornece a rede \texttt{10.0.0.0/24}, à qual se conectam o servidor de serviços auxiliares e as interfaces WAN dos dois roteadores NAT. O roteador A utiliza o endereço WAN \texttt{10.0.0.117}, e o roteador B, o endereço \texttt{10.0.0.40}. Ambos disponibilizam uma LAN com prefixo \texttt{192.168.80.0/24} e endereço de \textit{gateway} \texttt{192.168.80.1}. Essas LANs são segmentos separados, apesar de utilizarem o mesmo endereçamento. Os \textit{peers} A e B utilizam, respectivamente, os endereços \texttt{192.168.80.100} e \texttt{192.168.80.101}. A Figura~\ref{fig:physical_topology} apresenta essa topologia.
 
 \begin{figure}[!ht]
     \centering
-    \includegraphics[width=0.8\textwidth]{fig/implementation/ossl_quic/new_udp_conn_diagram.png}
-    \caption{Diagrama de atividades do fluxo atualizado da interface \texttt{udp\_conn\_t}.}
-    \label{fig:udp_conn_additional_methods}
+    \includegraphics[width=0.7\textwidth]{fig/results/physical/physical_topology.png}
+    \caption{Topologia física com roteadores da DATACOM.}
+    \label{fig:physical_topology}
 \end{figure}
 
-\section{Uso da Biblioteca libnice para a Integração do Protocolo ICE}
-\label{sec:ice_library}
+O primeiro computador acumula duas funções: executar o \textit{peer} A e hospedar os serviços auxiliares. Sua interface Ethernet conecta o \textit{peer} A à LAN do roteador A, e sua interface Wi-Fi conecta o servidor à rede do roteador base, com o endereço \texttt{10.0.0.108}. Nesse servidor, o \texttt{coturn} disponibiliza STUN/TURN por UDP na porta 3478, e o serviço de sinalização utiliza TCP na porta 5555. O segundo computador executa o \textit{peer} B, conectado à LAN do roteador B.
 
-Como visto anteriormente na Seção~\ref{sec:ice}, o protocolo ICE é o protocolo responsável pela descoberta prévia dos endereços IP de cada \textit{peer} que deseja realizar uma comunicação P2P a partir de técnicas de NAT traversal. A implementação descrita até então na Seção~\ref{sec:hole_punching_protocols} herda do protocolo Chownat a dependência do conhecimento prévio desses endereços pelo \textit{peer}. Isto implica a dependência chamada por este trabalho de ``mapeamento espelhado'', também descrita na Seção~\ref{sec:chownat_limitations}. Como forma de propor uma solução genérica para este problema, tanto para o próprio Chownat quanto para protocolos que herdam a interface genérica \texttt{udp\_conn} descrita na Seção~\ref{sec:hole_punching_interface}, foi criada uma nova interface de transporte, responsável pela gerência da \textit{socket} UDP da conexão, que permite à aplicação escolher o modelo de protocolo de transporte, suportando tanto a abordagem legada descrita na Seção~\ref{sec:hole_punching_interface} quanto a nova abordagem descrita nesta seção, utilizando ICE.
+Para separar as funções do primeiro computador, a interface Ethernet do \textit{peer} A é movida para um \textit{network namespace} próprio, cuja rota padrão aponta para o roteador A. Sem essa separação, a pilha de rede local encaminharia diretamente o tráfego entre o \textit{peer} A e o servidor, hospedado no mesmo computador, sem passar pelo roteador NAT. Diferentemente do ambiente \texttt{PatchBay}, nesse caso o \textit{namespace} isola uma interface física, e o encaminhamento e a tradução de endereços ocorrem nos roteadores externos.
 
-Durante a busca entre as principais bibliotecas de ICE, foi escolhida a \texttt{libnice}. Esta escolha se deve principalmente à praticidade de integração, devido a esta já possuir uma API baseada em eventos utilizando a biblioteca \texttt{GLib}, além de prover um controle completo sobre os protocolos STUN e TURN, mantendo-os de forma abstraída da implementação. Além disso, a \texttt{libnice} é implementada em C, o que facilita a integração direta com sua API. Outro ponto importante na escolha da biblioteca foi sua maturidade e validação, além de sua interoperabilidade com a Google WebRTC Library \citep{WebRTCOrg}, principal biblioteca de implementação de WebRTC utilizada na maioria dos navegadores, como apontado pela própria \texttt{libnice} em \citep{libnice}, o que implica também uma implementação que segue fielmente o RFC8445 \citep{rfc8445}, facilitando a integração com outros serviços para teste, como a própria biblioteca \texttt{coturn} \citep{coturn}.
+Um \textit{script} organiza a execução, com papéis distintos para os dois computadores. No papel A, o \textit{script} prepara os serviços auxiliares, o \textit{namespace} e a aplicação geradora de dados. No papel B, o \textit{script} inicia o \textit{peer} remoto e um serviço TCP de \textit{echo}.
 
-\subsection{Interface de gerência de sockets}
-
-Diferentemente da abordagem que vinha sendo utilizada, que permitia controle completo da \textit{socket} UDP usada no transporte dos pacotes, a \texttt{libnice} não expõe diretamente a sua \textit{socket}, impossibilitando a manutenção da mesma abordagem. Isto ocorre devido a necessidade da gerência de possíveis pacotes de \textit{keep-alive} da conexão ou até mesmo tunelamento dos dados até um servidor TURN como visto pela figura \ref{fig:turn_quic_tcp_tunneling}
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.8\textwidth]{fig/implementation/libnice/turn_quic_tcp_tunneling.png}
-    \caption{Representação de transimssão de pacote TCP tunelados sobre QUIC sendo tunelados por TURN até o servidor \textit{relay}.}
-    \label{fig:turn_quic_tcp_tunneling}
-\end{figure}
-
-
-Até então, chamadas POSIX eram feitas passando diretamente a \textit{socket} utilizada (\texttt{sendto}, \texttt{recvfrom}, etc.). Portanto, para a adequação e manutenção dessa mesma estrutura, foi criada uma camada fina responsável por abstrair a existência da \textit{socket} UDP, permitindo que as chamadas fossem feitas sem a necessidade de acesso direto a ela. Esta camada fina é uma interface que define um contrato a ser implementado por determinadas soluções, chamada de \texttt{udp\_transport\_t}. Isto permite que implementações específicas, como o uso da \texttt{libnice}, implementem o contrato desta interface, mantendo os detalhes de sua gerência de \textit{socket} opacos, abstraídos dos usuários desta mesma camada, que, neste caso, é a própria interface \texttt{udp\_conn} e suas respectivas implementações. Além disso, a existência desta camada permite manter a solução legada, que gerencia \textit{sockets} diretamente. Essa estrutura, se representada por um diagrama, permite a flexibilidade demonstrada na Figura~\ref{fig:udp_transport_interface}, onde a solução legada foi chamada de ``Direct UDP'' e a nova solução é a solução ICE.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.8\textwidth]{fig/implementation/interface/udp_transport_flexibility.png}
-    \caption{Diagrama de estrutura pós-adesão da interface \texttt{udp\_transport\_t}.}
-    \label{fig:udp_transport_interface}
-\end{figure}
-
-\subsection{QUIC da OpenSSL com BIO}
-
-Diferentemente da implementação do protocolo Chownat, em que as chamadas de manipulação de conexão e dados eram feitas através das funções da POSIX, a conexão e o transporte do protocolo QUIC da OpenSSL abstraem o uso dessas funções, fornecendo versões próprias e permitindo apenas o envio através da \textit{socket} escolhida. Portanto, não é possível simplesmente alternar sua implementação para chamar uma função de \texttt{udp\_transport}; do contrário, o \texttt{udp\_transport} precisaria conhecer a implementação QUIC, o que quebraria o contrato e inviabilizaria o isolamento da interface \texttt{udp\_transport} sem conhecimento do protocolo de transporte utilizado.
-
-Entretanto, a OpenSSL fornece um recurso denominado BIO (\textit{Basic Input/Output}). Um BIO é uma abstração, ou pode também ser visto como outra interface, que permite abstrair o tipo de entrada e saída utilizado (arquivo, \textit{socket}, \textit{buffer}, etc.), permitindo que uma implementação específica defina um contrato próprio para o tratamento dos dados recebidos por esse BIO. Na prática, toda implementação da OpenSSL cria um BIO internamente, o que também permite que, caso outra implementação queira utilizar um contrato diferente do padrão da OpenSSL, baste implementar esse contrato. 
-
-Esta solução resolve exatamente o problema abordado anteriormente, pois desta forma, o contrato de uma nova conexão BIO pode chamar a implementação de \texttt{udp\_transport}, abstraindo da camada acima o conhecimento sobre o protocolo de transporte utilizado. O fluxo pode ser visto na Figura~\ref{fig:openssl_quic_bio_update}.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.9\textwidth]{fig/implementation/libnice/openssl_quic_bio_update.png}
-    \caption{Diagrama de funcionamento do BIO OpenSSL juntamente com a interface \texttt{udp\_transport}.}
-    \label{fig:openssl_quic_bio_update}
-\end{figure}
-
-O contrato necessário para a criação de um novo BIO, como no caso da implementação utilizada neste trabalho, é descrito por \citep{openssl_bio_meth} e exige a implementação dos seguintes métodos:
-
-\begin{itemize}
-    \item \textbf{create}: inicializar o estado específico de uma nova instância do BIO, cuja estrutura já foi alocada pela OpenSSL;
-    \item \textbf{destroy}: liberar os recursos específicos da instância. A estrutura BIO em si é liberada pela OpenSSL;
-    \item \textbf{ctrl}: atender comandos e consultas de controle, como \textit{flush}, configuração e obtenção de informações sobre o BIO;
-    \item \textbf{sendmmsg}: enviar os datagramas fornecidos e informar quantas mensagens foram processadas;
-    \item \textbf{recvmmsg}: receber datagramas nos \textit{buffers} fornecidos, preencher os tamanhos e endereços solicitados e informar quantas mensagens foram processadas.
-\end{itemize}
-
-\subsection{Funcionamento da integração da libnice}
-
-Na arquitetura proposta, a integração da \texttt{libnice} é executada em cada \textit{gateway} e gerencia a conectividade com o \textit{gateway} remoto. Os candidatos ICE representam os caminhos disponíveis para a comunicação entre esses \textit{hosts}. Os dispositivos IoT associados ao cenário de aplicação não participam desse processo de negociação. 
-
-Na integração da \texttt{libnice} com a interface \texttt{udp\_transport}, o usuário em nível de aplicação fica responsável apenas pela configuração desta interface, que se resume à configuração de IP/porta do servidor STUN, à configuração de IP/porta do servidor TURN e ao fornecimento de uma \textit{callback} responsável por realizar o processo de sinalização da forma que a aplicação encontrar mais adequada.
-
-Durante as etapas de integração, grande parte das responsabilidades do protocolo ICE já são resolvidas diretamente na inicialização da interface. As configurações definidas pela aplicação são aplicadas à biblioteca, configurando cada um dos servidores. Após essa configuração, é realizada a coleta dos candidatos locais a partir dos servidores e da interface local; em seguida, é chamada a \textit{callback} definida pelo usuário para o tratamento do processo de sinalização, aguardando até que os candidatos remotos sejam recebidos. Ao recebê-los, são realizados os \textit{connectivity checks}, e, a partir da escolha dos endereços candidatos, o \textit{hole punching} é concluído, e o controle é liberado para a interface \texttt{udp\_conn}, restando como única responsabilidade pendente a gerência da conexão.
-
-Como visto anteriormente, a \texttt{libnice} utiliza a \texttt{GLib}, uma biblioteca que fornece uma API baseada em eventos. Na implementação original da \texttt{udp\_conn}, era utilizada a chamada \texttt{select} para a gerência de múltiplas \textit{sockets}. Com a adesão da interface \texttt{udp\_transport}, essa chamada passou a ficar abstraída pela própria interface, já que ela é a responsável por gerenciar a \textit{socket} UDP. Com isso, a implementação ICE abandona o uso da chamada \texttt{select} em favor de uma variação da chamada \texttt{poll} da POSIX, também utilizada para gerenciar eventos. Dado o uso da \texttt{GLib}, a chamada utilizada é a \texttt{g\_poll}, responsável por gerenciar eventos da \texttt{GLib} e que, na prática, também utiliza \texttt{poll} internamente, ou até mesmo a própria chamada \textit{select}. Portanto, o \textit{loop} de eventos descrito anteriormente na Seção~\ref{sec:api_and_event_loop} passa a ser gerenciado internamente pela implementação de \texttt{udp\_transport}, e a gerência da conexão ICE é tratada dentro desse \textit{event loop}. Desta forma, o novo fluxo de conexão após a atualização com a biblioteca ICE se resume como visto pela Figura \ref{fig:udp_transport_connection_flow}.
-
-\begin{figure}[ht]
-    \centering
-    \includegraphics[width=0.8\textwidth]{fig/implementation/libnice/udp_transport_connection_flow.png}
-    \caption{Diagrama de sequência do novo fluxo de conexão utilizando a biblioteca \texttt{libnice}.}
-    \label{fig:udp_transport_connection_flow}
-\end{figure}
-
-\begin{comment}
-    
-\section{Implementação simplificada do QUIC}
-\cgk{A ser feito (Implementação manual)}
-
-\subsection{Implementação Simplificada da Conexão e Comunicação do QUIC}
-
-\subsection{Implementação Simplificada de Connection Migration}
-
-\subsection{Realização de Connection Migration Hole Punching}
-
-\end{comment}
-
-\begin{comment}
-1. Transporte comum: UDP direto e ICE usam a mesma HAL. A libnice controla seus sockets, e o chamador processa eventos e timers pelo wait(), sem thread dedicada do adaptador.
-2. ICE/STUN/TURN: coleta de candidatos, troca por callback de signaling, seleção do par e opção force_relay. Há testes de NAT, remapeamento de porta e TURN obrigatório.
-3. CHOWNAT sobre ICE: mantém o handshake 01 → 03 → 03. A função chownat_recv_control() controla o prazo das esperas, evitando que timers ICE consumam tentativas antecipadamente.
-4. QUIC sobre ICE: OpenSSL recebe datagramas por um BIO próprio ligado à HAL. Cliente e servidor usam estabelecimento e shutdown não bloqueantes com prazo. Foram separados dois streams bidirecionais, um para dados e outro para controle/keep-alive, evitando inserir bytes de controle no túnel TCP.
-5. Fechamento e patch da libnice: o adaptador continua processando respostas durante o fechamento. Além disso, o build compila libnice 0.1.21 com um patch que repete a remoção TURN quando recebe 438 Stale nonce. A dependência corrigida fica estática em _deps, sem substituir a biblioteca do sistema.
-\end{comment}
+O \textit{script} também inicia capturas de pacotes nas interfaces utilizadas pelo \textit{peer} A, pelo servidor e pelo \textit{peer} B. Os arquivos PCAP e os \textit{logs} dos processos são armazenados por execução, o que permite relacionar a negociação ICE, o estabelecimento da conexão QUIC e a comunicação entre os \textit{gateways}. A Seção~\ref{sec:physical_results} apresenta os resultados obtidos nesse ambiente.
