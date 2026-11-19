@@ -171,7 +171,7 @@ A Tabela~\ref{tab:experimental_parameters} apresenta os prazos e os limites defi
         5~s & Chownat/ICE e QUIC/ICE \\
         Leitura/escrita da sinalização &
         3~s & Chownat/ICE e QUIC/ICE \\
-        Estabelecimento QUIC e abertura dos streams &
+        Estabelecimento QUIC e abertura dos \textit{streams} &
         5~s & Testes QUIC \\
         Espera por resposta de controle Chownat &
         1~s & Conexão e encerramento \\
@@ -180,9 +180,9 @@ A Tabela~\ref{tab:experimental_parameters} apresenta os prazos e os limites defi
         Inatividade para acionar \textit{keep-alive}
         da sessão &
         5~s & Camada \texttt{udp\_conn} \\
-        Buffer de leitura e encaminhamento &
+        \textit{Buffer} de leitura e encaminhamento &
         1024~B & Túnel TCP na camada \texttt{udp\_conn} \\
-        Limite de payload por datagrama UDP &
+        Limite de \textit{payload} por datagrama UDP &
         1200~B & BIO utilizado pelo QUIC \\
         \bottomrule
     \end{tabular}
@@ -209,17 +209,17 @@ A Tabela~\ref{tab:functional_cases} identifica os casos avaliados nesta seção.
         \textbf{Caso} & \textbf{Configuração} & \textbf{Verificação} \\
         \midrule
         C1 & Chownat sem ICE, sem túnel TCP & Três rodadas de requisição/resposta e encerramento. \\
-        C2 & Chownat sem ICE, com túnel TCP & Transferência de 16384 bytes por sentido. \\
+        C2 & Chownat sem ICE, com túnel TCP & Transferência de 16384 \textit{bytes} por sentido. \\
         C3 & QUIC sem ICE, sem túnel TCP & Três rodadas de requisição/resposta e encerramento. \\
-        C4 & QUIC sem ICE, com túnel TCP & Transferência de 16384 bytes por sentido. \\
+        C4 & QUIC sem ICE, com túnel TCP & Transferência de 16384 \textit{bytes} por sentido. \\
         C5 & Transporte ICE direto & Troca bidirecional de datagramas pelo par selecionado. \\
         C6 & Transporte ICE com remapeamento & Descoberta de portas públicas diferentes das locais e troca de datagramas. \\
         C7 & Transporte ICE via TURN obrigatório & Troca de datagramas por \textit{relay} e remoção das alocações. \\
-        C8 & Chownat/ICE direto, com túnel TCP & Transferência de 16384 bytes por sentido. \\
-        C9 & Chownat/ICE via TURN, com túnel TCP & Transferência de 16384 bytes por sentido e remoção das alocações. \\
-        C10 & QUIC/ICE direto, com túnel TCP & Transferência de 16384 bytes por sentido. \\
-        C11 & QUIC/ICE via TURN, com túnel TCP & Transferência de 16384 bytes por sentido e remoção das alocações. \\
-        C12 & QUIC/ICE via TURN, sessão prolongada & 67 blocos de 16384 bytes por sentido, renovação e remoção dos recursos TURN. \\
+        C8 & Chownat/ICE direto, com túnel TCP & Transferência de 16384 \textit{bytes} por sentido. \\
+        C9 & Chownat/ICE via TURN, com túnel TCP & Transferência de 16384 \textit{bytes} por sentido e remoção das alocações. \\
+        C10 & QUIC/ICE direto, com túnel TCP & Transferência de 16384 \textit{bytes} por sentido. \\
+        C11 & QUIC/ICE via TURN, com túnel TCP & Transferência de 16384 \textit{bytes} por sentido e remoção das alocações. \\
+        C12 & QUIC/ICE via TURN, sessão prolongada & 67 blocos de 16384 \textit{bytes} por sentido, renovação e remoção dos recursos TURN. \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -241,7 +241,7 @@ No caso C6, a captura na interface LAN do \textit{gateway} A registra um \textit
 
 Após a troca de candidatos, a captura na WAN do roteador A registra uma verificação de conectividade destinada ao \textit{endpoint} público do \textit{gateway} B, \texttt{10.0.0.3:64027}. No \textit{gateway} B, o NAT traduziu a porta local 47643 para a porta pública 64027. A verificação consiste em um \textit{Binding Request} com os atributos \texttt{USERNAME}, \texttt{MESSAGE-INTEGRITY} e \texttt{USE-CANDIDATE}, seguido de uma resposta de sucesso. O atributo \texttt{USE-CANDIDATE} indica a nomeação do par pelo agente controlador. A seleção registrada pela \texttt{libnice} confirma o par formado pelos \textit{endpoints} públicos de A e B, respectivamente \texttt{10.0.0.2:38576} e \texttt{10.0.0.3:64027}. Assim, nesse cenário, o transporte ICE elimina a dependência do ``mapeamento espelhado'' presente na referência sem ICE.
 
-No caso C10 (QUIC/ICE direto), realizado em outra execução e com outras portas, a captura permite acompanhar também a passagem da negociação ICE para o estabelecimento QUIC. Na Figura~\ref{fig:result_ice_quic_direct}, os quadros 26 e 27 contêm a nomeação do par e a resposta STUN, que concluem o \textit{hole punching} UDP por meio das verificações de conectividade. Em seguida, o quadro 59 apresenta um datagrama UDP de 1200 \textit{bytes} iniciado por um pacote QUIC \textit{Initial}, tamanho que atende ao mínimo exigido pelo RFC~9000 para datagramas com pacotes \textit{Initial} \citep{rfc9000}. A sequência inclui pacotes \textit{Retry} e \textit{Handshake} entre os mesmos \textit{endpoints} utilizados na negociação ICE. A captura, portanto, permite distinguir a preparação do caminho do \textit{handshake} QUIC descrito na Seção~\ref{sec:ossl_quic_for_hole_punching}.
+No caso C10 (QUIC/ICE direto), realizado em outra execução e com outras portas, a captura permite acompanhar também a passagem da negociação ICE para o estabelecimento QUIC. Na Figura~\ref{fig:result_ice_quic_direct}, os quadros 26 e 27 contêm a nomeação do par e a resposta STUN, que concluem o \textit{hole punching} UDP por meio das verificações de conectividade. Em seguida, o quadro 59 apresenta um datagrama UDP de 1200 \textit{bytes} iniciado por um pacote QUIC \texttt{Initial}, tamanho que atende ao mínimo exigido pelo RFC~9000 para datagramas com pacotes \texttt{Initial} \citep{rfc9000}. A sequência inclui pacotes \texttt{Retry} e \texttt{Handshake} entre os mesmos \textit{endpoints} utilizados na negociação ICE. A captura, portanto, permite distinguir a preparação do caminho do \textit{handshake} QUIC descrito na Seção~\ref{sec:ossl_quic_for_hole_punching}.
 
 \begin{figure}[htbp]
     \centering
@@ -293,7 +293,7 @@ Nos NATs simétricos, por outro lado, o mapeamento depende do destino, de modo q
 \subsection{Transferência de Dados e Integração com Aplicações TCP}
 \label{sec:functional_data_transfer}
 
-A verificação ocorreu sobre os dados entregues às aplicações, pois a conclusão do \textit{handshake} não demonstra que o túnel preserva o conteúdo transmitido. Nos seis casos curtos com túnel TCP (C2, C4 e C8--C11), o gerador enviou 16384 \textit{bytes} e comparou byte a byte a resposta do serviço \textit{echo}. O conteúdo enviado é binário e conhecido previamente, incluindo \textit{bytes} nulos e não imprimíveis. A comparação integral verifica a preservação dos dados independentemente de sua interpretação como texto.
+A verificação ocorreu sobre os dados entregues às aplicações, pois a conclusão do \textit{handshake} não demonstra que o túnel preserva o conteúdo transmitido. Nos seis casos curtos com túnel TCP (C2, C4 e C8--C11), o gerador enviou 16384 \textit{bytes} e comparou \textit{byte} a \textit{byte} a resposta do serviço \textit{echo}. O conteúdo enviado é binário e conhecido previamente, incluindo \textit{bytes} nulos e não imprimíveis. A comparação integral verifica a preservação dos dados independentemente de sua interpretação como texto.
 
 O caso C10 (QUIC/ICE direto) ilustra a relação entre as duas conexões TCP locais e o transporte entre \textit{gateways}. No \textit{gateway} A, a aplicação se conecta à porta 44444, e o quadro 86 da captura de \textit{loopback} (Figura~\ref{fig:result_tcp_application}a) contém os 16384 \textit{bytes} entregues ao túnel. No \textit{gateway} B (Figura~\ref{fig:result_tcp_application}b), a implementação abre outra conexão TCP com o serviço \textit{echo} na porta 1234. Nessa segunda conexão, o primeiro segmento de dados contém 1024 \textit{bytes}, valor que corresponde ao \textit{buffer} de leitura do túnel (Tabela~\ref{tab:experimental_parameters}), e os segmentos seguintes completam a mesma sequência de aplicação. As fronteiras dos segmentos diferem entre as duas conexões, mas o conteúdo entregue ao serviço é preservado.
 
@@ -325,8 +325,8 @@ Para conferir o conteúdo além do recorte visual, os dados foram reconstruídos
         \midrule
         C1 e C3: Chownat e QUIC sem túnel & Três rodadas de requisição/resposta com conteúdo e sequência conferidos por protocolo. \\
         C5--C7: transporte ICE direto, remapeado e via TURN & Mensagens recebidas nos dois sentidos com conteúdo e tamanho esperados. \\
-        C2, C8 e C9: Chownat com túnel TCP & Echo de 16384 bytes íntegro nas variantes sem ICE, ICE direto e ICE/TURN. \\
-        C4, C10 e C11: QUIC com túnel TCP & Echo de 16384 bytes íntegro nas variantes sem ICE, ICE direto e ICE/TURN. \\
+        C2, C8 e C9: Chownat com túnel TCP & \textit{Echo} de 16384 \textit{bytes} íntegro nas variantes sem ICE, ICE direto e ICE/TURN. \\
+        C4, C10 e C11: QUIC com túnel TCP & \textit{Echo} de 16384 \textit{bytes} íntegro nas variantes sem ICE, ICE direto e ICE/TURN. \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -444,7 +444,7 @@ Nas capturas das interfaces LAN (Figura~\ref{fig:physical_connection_steps}), os
     \label{fig:physical_connection_steps}
 \end{figure}
 
-Após o estabelecimento do QUIC, os dois \textit{gateways} registraram 16384 \textit{bytes} enviados e recebidos e a conclusão do encerramento. O gerador local também informou que a resposta do \textit{echo} era idêntica ao conteúdo enviado, seguida de EOF. A evidência de integridade vem dessa comparação byte a byte, e as capturas identificam o percurso e a sequência de protocolos utilizados.
+Após o estabelecimento do QUIC, os dois \textit{gateways} registraram 16384 \textit{bytes} enviados e recebidos e a conclusão do encerramento. O gerador local também informou que a resposta do \textit{echo} era idêntica ao conteúdo enviado, seguida de EOF. A evidência de integridade vem dessa comparação \textit{byte} a \textit{byte}, e as capturas identificam o percurso e a sequência de protocolos utilizados.
 
 \subsection{Comparação com o Ambiente PatchBay e Alcance dos Resultados}
 

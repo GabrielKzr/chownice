@@ -189,7 +189,7 @@ O NAT é um mecanismo que traduz endereços IP entre diferentes domínios de end
 
 \subsection{Características em Comum de NATs}
 
-Conforme o RFC~2663 \citep{RFC2663}, os mecanismos NAT apresentam como características a tradução de endereços e o encaminhamento transparentes aos dispositivos finais, além da tradução das informações contidas nas mensagens de erro ICMP (\textit{Internet Control Message Protocol}). Como essas mensagens incluem parte do pacote que originou o erro, os campos afetados pelo NAT precisam ser ajustados para que o host interno reconheça a comunicação correspondente.
+Conforme o RFC~2663 \citep{RFC2663}, os mecanismos NAT apresentam como características a tradução de endereços e o encaminhamento transparentes aos dispositivos finais, além da tradução das informações contidas nas mensagens de erro ICMP (\textit{Internet Control Message Protocol}). Como essas mensagens incluem parte do pacote que originou o erro, os campos afetados pelo NAT precisam ser ajustados para que o \textit{host} interno reconheça a comunicação correspondente.
 
 O NAT permite interligar redes que utilizam endereços privados à rede externa por meio de endereços públicos. As faixas privadas podem ser reutilizadas por redes distintas \citep{rfc1597, rfc1918}, gerando sobreposição: um mesmo endereço pode identificar dispositivos diferentes em redes distintas, impedindo sua utilização direta na comunicação entre essas redes \citep{RFC1631}. Essa limitação é central para a comunicação P2P e será discutida na Seção~\ref{sec:nat_problem_for_p2p_communication}.
 
@@ -696,7 +696,7 @@ Para garantir a segurança e impedir o uso do TURN para contornar (\textit{bypas
 
 O TURN oferece dois mecanismos para transportar dados entre cliente e servidor. As mensagens \texttt{Send Indication} e \texttt{Data Indication} utilizam o formato STUN e transportam dados, respectivamente, do cliente ao servidor e do servidor ao cliente. Como alternativa, o cliente pode enviar uma requisição \texttt{ChannelBind}, associando um número de canal ao endereço de transporte do participante remoto \citep{rfc8656}.
 
-Após essa associação, ambos os sentidos podem utilizar mensagens \texttt{ChannelData}, cujo cabeçalho de quatro bytes contém o número do canal e o tamanho dos dados, reduzindo a sobrecarga em relação às \textit{indications}. A associação tem validade de dez minutos e precisa ser renovada para continuar em uso \citep{rfc8656}.
+Após essa associação, ambos os sentidos podem utilizar mensagens \texttt{ChannelData}, cujo cabeçalho de quatro \textit{bytes} contém o número do canal e o tamanho dos dados, reduzindo a sobrecarga em relação às \textit{indications}. A associação tem validade de dez minutos e precisa ser renovada para continuar em uso \citep{rfc8656}.
 
 \subsection{Protocolo ICE}
 
@@ -857,7 +857,7 @@ O protocolo do Chownat é simples e recupera pacotes perdidos por meio de pacote
 
 \subsubsection{Tipos de Pacote do Chownat}
 
-Os pacotes de controle e de dados do Chownat compartilham um cabeçalho de 3 bytes, identificado na análise do código-fonte da versão 0.07 \citep{kamkar2004chownatv07} e ilustrado na Figura~\ref{fig:header_chownat}. O campo \textit{packet type} distingue os cinco tipos apresentados na Tabela~\ref{tab:chownat_packet_types}.
+Os pacotes de controle e de dados do Chownat compartilham um cabeçalho de 3 \textit{bytes}, identificado na análise do código-fonte da versão 0.07 \citep{kamkar2004chownatv07} e ilustrado na Figura~\ref{fig:header_chownat}. O campo \textit{packet type} distingue os cinco tipos apresentados na Tabela~\ref{tab:chownat_packet_types}.
 
 \begin{figure}[!ht]
         \centering

@@ -54,10 +54,10 @@ O Chownat possui diversas limitações, associadas principalmente ao seu objetiv
 Como a interface genérica, apresentada na Seção~\ref{sec:hole_punching_interface}, se baseia no Chownat, os mecanismos propostos para generalizá-la e viabilizar seu uso por outros protocolos também beneficiam o próprio Chownat. Algumas limitações não foram solucionadas, principalmente as específicas do protocolo, como suas garantias de dependabilidade. Ainda assim, parte delas foi resolvida para permitir testes sobre os recursos da interface. As principais limitações e o tratamento dado a cada uma são:
 
 \begin{itemize}
-    \item \textbf{Conexão suporta apenas o envio de 256 pacotes:} o identificador de pacote ocupa um único byte e, portanto, assume valores entre 0 e $2^8-1$. Optou-se por manter o cabeçalho do Chownat (Seção~\ref{sec:chownat_protocol}) e reiniciar a contagem ao atingir o limite. Perdas de mais de 256 pacotes consecutivos ainda geram comportamento indefinido, mas essa solução foi preferida à extensão do campo para 2 bytes, pois preserva o formato original do pacote;
+    \item \textbf{Conexão suporta apenas o envio de 256 pacotes:} o identificador de pacote ocupa um único \textit{byte} e, portanto, assume valores entre 0 e $2^8-1$. Optou-se por manter o cabeçalho do Chownat (Seção~\ref{sec:chownat_protocol}) e reiniciar a contagem ao atingir o limite. Perdas de mais de 256 pacotes consecutivos ainda geram comportamento indefinido, mas essa solução foi preferida à extensão do campo para 2 \textit{bytes}, pois preserva o formato original do pacote;
     \item \textbf{Apenas permite comunicação de dados TCP:} o Chownat funciona apenas com tunelamento TCP e não permite o envio nativo de dados UDP. Com a interface genérica, o tunelamento TCP passou a ser opcional por conexão, e a aplicação pode enviar dados nativamente, sem depender de uma conexão TCP externa;
     \item \textbf{Permite apenas uma conexão por aplicação:} ao finalizar a única conexão TCP suportada, o protocolo original entrava em \textit{loop} infinito. A solução consistiu em implementar um \textit{3-way handshake} de desconexão, com número máximo de tentativas configurável por conexão. Assim, ao finalizar uma conexão TCP, a conexão Chownat também é finalizada, e uma nova conexão pode ser inicializada;
-    \item \textbf{Hole punching exige tradução de porta com ``mapeamento espelhado'':} o \textit{hole punching} do Chownat depende de o NAT preservar a porta de origem, isto é, mapear o tráfego para a mesma porta à qual o \textit{socket} remetente está vinculado. Alguns NATs apresentam esse comportamento, como o NAT simulado pelo \texttt{PatchBay} \citep{patchbay} no modo \textit{Moderate}, mas trata-se de um caso particular, e não de uma regra geral entre implementações de NAT. A integração da biblioteca ICE, descrita na Seção~\ref{sec:ice_library}, resolveu posteriormente esse problema;
+    \item \textbf{\textit{Hole punching} exige tradução de porta com ``mapeamento espelhado'':} o \textit{hole punching} do Chownat depende de o NAT preservar a porta de origem, isto é, mapear o tráfego para a mesma porta à qual o \textit{socket} remetente está vinculado. Alguns NATs apresentam esse comportamento, como o NAT simulado pelo \texttt{PatchBay} \citep{patchbay} no modo \textit{Moderate}, mas trata-se de um caso particular, e não de uma regra geral entre implementações de NAT. A integração da biblioteca ICE, descrita na Seção~\ref{sec:ice_library}, resolveu posteriormente esse problema;
     \item \textbf{Sem garantias de dependabilidade:} o protocolo não oferece garantias de confiabilidade, integridade, autenticidade ou segurança. Essa limitação não foi resolvida, pois o objetivo final é o uso do QUIC, que oferece nativamente entrega confiável e proteção criptográfica. Manteve-se, portanto, a simplicidade do Chownat para fins exclusivos de teste.
 \end{itemize}
 
@@ -99,8 +99,8 @@ A interface genérica permite ainda que o protocolo UDP opere em dois modos, cli
 A conexão por meio desta interface se baseia em três operações, cuja ordem define se o processo opera como cliente ou como servidor. As operações são as seguintes:
 
 \begin{enumerate}
-    \item \textbf{Bind TCP:} vincula a sessão TCP ao serviço local;
-    \item \textbf{Hole Punching:} realiza a travessia de NAT por \textit{hole punching} UDP;
+    \item \textbf{\textit{Bind} TCP:} vincula a sessão TCP ao serviço local;
+    \item \textbf{\textit{Hole Punching}:} realiza a travessia de NAT por \textit{hole punching} UDP;
     \item \textbf{Conexão UDP:} executa o processo de conexão do próprio protocolo, quando este não está integrado ao \textit{hole punching}.
 \end{enumerate}
 
@@ -192,7 +192,7 @@ Assim como no Chownat (Seção~\ref{sec:chownat}), esta etapa inicializa o \text
 
 O processo de \textit{hole punching} da implementação ``ossl\_quic'' segue o padrão do Chownat: o \textit{hole punching} ocorre antes da conexão QUIC, o que implementa parcialmente a primeira proposta de \citet{draft-seemann-quic-nat-traversal}. Na prática, esse \textit{hole punching} pode ser realizado pelo próprio ICE, como descrito na Seção~\ref{sec:ice_library}.
 
-Concluído o \textit{hole punching}, inicia-se a conexão QUIC. Essa etapa corresponde à operação opcional de conexão UDP descrita na Seção~\ref{sec:interface_connection_flow_and_hole_punching} e ilustrada na Figura~\ref{fig:udp_conn_connection_flow_diagram}. Antes dela, a implementação executa uma operação interna, denominada neste trabalho \textit{pre connect}. Os datagramas residuais do \textit{hole punching} não exigem descarte manual. O RFC~9000 determina que o servidor descarte pacotes \texttt{Initial} contidos em datagramas UDP com menos de 1200 bytes \citep{rfc9000}, e datagramas que não formam pacotes QUIC válidos também são descartados pela implementação.
+Concluído o \textit{hole punching}, inicia-se a conexão QUIC. Essa etapa corresponde à operação opcional de conexão UDP descrita na Seção~\ref{sec:interface_connection_flow_and_hole_punching} e ilustrada na Figura~\ref{fig:udp_conn_connection_flow_diagram}. Antes dela, a implementação executa uma operação interna, denominada neste trabalho \textit{pre connect}. Os datagramas residuais do \textit{hole punching} não exigem descarte manual. O RFC~9000 determina que o servidor descarte pacotes \texttt{Initial} contidos em datagramas UDP com menos de 1200 \textit{bytes} \citep{rfc9000}, e datagramas que não formam pacotes QUIC válidos também são descartados pela implementação.
 
 A \textit{pre connect}, como o nome indica, ocorre antes da conexão e cria uma nova conexão SSL, nome dado às conexões da \texttt{OpenSSL}, posteriormente utilizada na conexão QUIC. Essa operação cria a conexão, ou o \textit{listener} no caso do servidor, inicializa esse objeto no estado adequado e vincula o descritor de arquivo (\textit{file descriptor}, FD) correspondente, configurando o cliente como conexão e o servidor como \textit{listener}. No lado do cliente, a operação também chama a função POSIX \texttt{connect}, que associa o \textit{socket} UDP a um endereço remoto sem estabelecer uma conexão, ao contrário do que ocorre no TCP. No lado do servidor, o \textit{socket} é configurado inicialmente como bloqueante, para que o servidor aguarde a conexão QUIC.
 
@@ -384,7 +384,7 @@ O \texttt{PatchBay} \citep{patchbay} fornece quatro tipos de NAT para IPv4, alé
 \begin{itemize}
     \item \textbf{None:} roteador sem NAT, ou seja, sem tradução de endereços;
     \item \textbf{Open:} implementa EIM e EIF, descritos na Seção~\ref{sec:nat_classification_by_translation_behavior}, e corresponde ao \textit{Full-Cone NAT};
-    \item \textbf{Moderate:} implementa EIM e APDF e corresponde ao \textit{Port-Restricted Cone NAT}, comportamento típico de roteadores domésticos;
+    \item \textbf{\textit{Moderate}:} implementa EIM e APDF e corresponde ao \textit{Port-Restricted Cone NAT}, comportamento típico de roteadores domésticos;
     \item \textbf{Strict:} implementa EDM (\textit{Endpoint-Dependent Mapping}), com portas aleatórias, e APDF, e corresponde ao \textit{Symmetric NAT}. Quando ambos os \textit{peers} estão atrás desse tipo de NAT, o \textit{hole punching} direto não é viável, e a comunicação exige um \textit{relay}.
 \end{itemize}
 
