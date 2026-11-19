@@ -43,8 +43,6 @@ sem garantir confirmação remota em todos os tipos de falha da rede.
 
 A base 0.1.21 corresponde à reprodução validada. A 0.1.24 também falhou no
 experimento independente; apenas atualizar para ela não resolveu o caso.
-Histórico e evidências estão na
-[investigação](../../docs/analysis/libnice-turn-close-nonce-2026-11-03.md).
 
 ## Regressão
 

@@ -7,8 +7,7 @@ descritas ali; não usa a libnice instalada no sistema.
 
 Estado consolidado em2026-11-04: QUIC sobre ICE direto/TURN também foi validado;
 suíte atual18/18 em33,36s. O teste longo após o patch foi interrompido a pedido
-do usuário e não deve ser repetido sem novo pedido. O inventário de alterações,
-evidências e limites está na [memória completa](../../../docs/memory/libnice-integration.md).
+do usuário e não deve ser repetido sem novo pedido.
 
 Dois agentes no mesmo processo usam somente UDP em `127.0.0.1`, com portas
 automáticas. Credenciais e candidatos são trocados em memória. Após ambos
@@ -162,8 +161,6 @@ obrigatório e túneis TCP CHOWNAT/QUIC no Patchbay. QUIC/ICE direto/TURN e
 falhas locais já foram implementados e validados nos testes curtos. Permanecem
 a aprovação da sessão longa completa após o patch, cobertura adicional de
 falhas/recuperação e reprodução final no GNS3. Não repetir long sem novo pedido.
-Critérios de aceite e estado estão no
-[plano de integração](../../../docs/plans/ice-quic-integration.md).
 
 ## Falhas locais de ICE
 

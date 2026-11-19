@@ -11,7 +11,7 @@ Na infraestrutura proposta, o QUIC é executado nos \textit{gateways} e transpor
 
 A implementação permite o uso de 0-RTT e de migração de conexão, mas esses recursos não foram avaliados explicitamente nos experimentos. Sua utilização permanece condicionada à disponibilidade de caminhos de comunicação viabilizados pelo ICE, incluindo os mecanismos de travessia de NAT necessários. Portanto, os resultados apresentados não caracterizam os ganhos de latência do 0-RTT nem a continuidade da comunicação durante uma migração.
 
-A abordagem adotada utiliza ICE para estabelecer o caminho de comunicação, em vez da variante de \textit{hole punching} baseada em migração de conexão discutida neste capítulo na Seção \ref{sec:quic_hole_punching}. Os detalhes da integração entre QUIC e ICE são apresentados no Capítulo~\ref{chap:implementation}.
+A abordagem adotada utiliza ICE para estabelecer o caminho de comunicação, em vez da variante de \textit{hole punching} baseada na migração de conexão discutida neste capítulo na Seção \ref{sec:quic_hole_punching}. Os detalhes da integração entre QUIC e ICE são apresentados no Capítulo~\ref{chap:implementation}.
 
 \section{História do QUIC}
 
@@ -24,7 +24,7 @@ Esse processo resultou no QUICv1, publicado em 2021 no RFC~9000 e adotado como r
 \begin{figure}[!ht]
     \centering
     \includegraphics[width=0.7\textwidth]{fig/QUIC/quic_stack.png}
-    \caption{Pilha de protocolos utilizando QUIC. Fonte: adaptado de \citep{marx2020quic}.}
+    \caption{Pilha de protocolos utilizando QUIC baseado em \citep{marx2020quic}.}
     \label{fig:quic_stack}
 \end{figure}
 
@@ -223,7 +223,7 @@ A Figura~\ref{fig:quic_short_header_protection} ilustra a aplicação da \textit
 
 \subsection{Tipos de pacotes QUIC}
 
-O QUICv1 utiliza pacotes com \textit{long header} (\texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{Retry}) durante o estabelecimento e a retomada de conexões, enquanto os pacotes com \textit{short header} (\texttt{1-RTT}) transportam dados e controle a partir da disponibilização das chaves de aplicação. Há ainda o pacote \textit{Version Negotiation}, cujo formato independe da versão do protocolo e permite informar as versões suportadas pelo servidor \citep{rfc8999, rfc9000}. A Tabela~\ref{tab:quic_packet_types} resume a função de cada tipo.
+O QUICv1 utiliza pacotes com \textit{long header} (\texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{Retry}) durante o estabelecimento e a retomada de conexões, enquanto os pacotes com \textit{short header} (\texttt{1-RTT}) transportam dados e controle a partir da disponibilização das chaves de aplicação. Há ainda o pacote \texttt{Version Negotiation}, cujo formato independe da versão do protocolo e permite informar as versões suportadas pelo servidor \citep{rfc8999, rfc9000}. A Tabela~\ref{tab:quic_packet_types} resume a função de cada tipo.
 
 \begin{table}[htbp]
     \centering
@@ -337,13 +337,13 @@ As \textit{1-RTT Keys} derivam do \textit{Master Secret} do TLS~1.3, que, por su
 \subsubsection{Proteção de pacotes}
 \label{sec:quic_packet_protection}
 
-A proteção dos pacotes QUIC varia conforme a etapa da conexão e complementa a proteção de cabeçalho descrita na Seção~\ref{sec:quic_header_protection}. O protocolo utiliza chaves distintas para os níveis \textit{Initial}, \textit{0-RTT}, \textit{Handshake} e \textit{1-RTT}, cujas garantias e limitações são resumidas a seguir \citep{rfc9001}.
+A proteção dos pacotes QUIC varia conforme a etapa da conexão e complementa a proteção de cabeçalho descrita na Seção~\ref{sec:quic_header_protection}. O protocolo utiliza chaves distintas para os níveis \texttt{Initial}, \texttt{0-RTT}, \texttt{Handshake} e \texttt{1-RTT}, cujas garantias e limitações são resumidas a seguir \citep{rfc9001}.
 
-Nos pacotes \texttt{Initial}, as chaves derivam de informações públicas, de modo que sua proteção não oferece confidencialidade contra observadores do tráfego. Os pacotes \texttt{Handshake} e \texttt{1-RTT} utilizam chaves derivadas da negociação TLS~1.3 para proteger, respectivamente, as mensagens posteriores ao \texttt{ServerHello} e os dados e controles da conexão. Os pacotes \texttt{0-RTT} utilizam chaves associadas a uma sessão anterior, mas não oferecem sigilo futuro (\textit{forward secrecy}) e estão sujeitos à reprodução de mensagens (\textit{replay}), exigindo cuidados da aplicação. Já o pacote \texttt{Retry} não é cifrado e possui uma etiqueta de integridade calculada com parâmetros públicos, que não autentica o servidor; o pacote \textit{Version Negotiation} não possui proteção criptográfica. Os mecanismos de derivação de chaves e de proteção são definidos no RFC~9001 \citep{rfc9001}.
+Nos pacotes \texttt{Initial}, as chaves derivam de informações públicas, de modo que sua proteção não oferece confidencialidade contra observadores do tráfego. Os pacotes \texttt{Handshake} e \texttt{1-RTT} utilizam chaves derivadas da negociação TLS~1.3 para proteger, respectivamente, as mensagens posteriores ao \texttt{ServerHello} e os dados e controles da conexão. Os pacotes \texttt{0-RTT} utilizam chaves associadas a uma sessão anterior, mas não oferecem sigilo futuro (\textit{forward secrecy}) e estão sujeitos à reprodução de mensagens (\textit{replay}), exigindo cuidados da aplicação. Já o pacote \texttt{Retry} não é cifrado e possui uma etiqueta de integridade calculada com parâmetros públicos, que não autentica o servidor; o pacote \texttt{Version Negotiation} não possui proteção criptográfica. Os mecanismos de derivação de chaves e de proteção são definidos no RFC~9001 \citep{rfc9001}.
 
 \subsubsection{\textit{Frames} do QUIC}
 
-Os \textit{frames} são as unidades de informação transportadas no conteúdo dos pacotes QUIC, e um mesmo pacote pode conter vários deles, com funções de dados ou de controle \citep{rfc9000}. Entre os principais tipos, o \texttt{CRYPTO} transporta mensagens do \textit{handshake} TLS; o \texttt{STREAM}, dados das aplicações; e o \texttt{ACK}, confirmações de recebimento de pacotes. O \texttt{PING} solicita uma confirmação do receptor sem transportar dados de aplicação, enquanto o \texttt{CONNECTION\_\allowbreak{}CLOSE} sinaliza o encerramento da conexão. Os pacotes \texttt{Retry} e \textit{Version Negotiation} não transportam \textit{frames}. A especificação dos formatos e dos tipos permitidos em cada pacote é definida no RFC~9000 \citep{rfc9000}.
+Os \textit{frames} são as unidades de informação transportadas no conteúdo dos pacotes QUIC, e um mesmo pacote pode conter vários deles, com funções de dados ou de controle \citep{rfc9000}. Entre os principais tipos, o \texttt{CRYPTO} transporta mensagens do \textit{handshake} TLS; o \texttt{STREAM}, dados das aplicações; e o \texttt{ACK}, confirmações de recebimento de pacotes. O \texttt{PING} solicita uma confirmação do receptor sem transportar dados de aplicação, enquanto o \texttt{CONNECTION\_\allowbreak{}CLOSE} sinaliza o encerramento da conexão. Os pacotes \texttt{Retry} e \texttt{Version Negotiation} não transportam \textit{frames}. A especificação dos formatos e dos tipos permitidos em cada pacote é definida no RFC~9000 \citep{rfc9000}.
 
 \begin{comment}
     
@@ -387,11 +387,11 @@ Com exceção dos pacotes \texttt{Retry} e \textit{Version Negotiation}, o \text
 \section{Conexão do QUIC}
 \label{sec:quic_connection}
 
-O estabelecimento de conexão do QUIC segue diferentes fluxos, conforme o estado prévio dos \textit{endpoints} e os pacotes recebidos. Esta seção descreve o \textit{handshake} 1-RTT, utilizado como caso base, e suas variações:
+O estabelecimento de conexão do QUIC segue diferentes fluxos, conforme o estado prévio dos \textit{endpoints} e os pacotes recebidos. Esta seção descreve o \textit{handshake} \texttt{1-RTT}, utilizado como caso base, e suas variações:
 
 \begin{itemize}
-    \item A Seção~\ref{sec:quic_connection_steps} detalha as etapas do \textit{handshake} 1-RTT do QUICv1;
-    \item A Seção~\ref{sec:0rtt_connection_recovery} descreve a retomada de sessão com dados 0-RTT;
+    \item A Seção~\ref{sec:quic_connection_steps} detalha as etapas do \textit{handshake} \texttt{1-RTT} do QUICv1;
+    \item A Seção~\ref{sec:0rtt_connection_recovery} descreve a retomada de sessão com dados \texttt{0-RTT};
     \item A Seção~\ref{sec:quic_version_negotiation} descreve a negociação da versão do protocolo entre os \textit{endpoints};
     \item A Seção~\ref{sec:quic_address_validation} descreve a validação de endereço, que mitiga ataques de \textit{spoofing} e de amplificação;
     \item A Seção~\ref{sec:connection_ids_operation} descreve o funcionamento dos \textit{Connection IDs}.
@@ -402,7 +402,7 @@ A Seção~\ref{sec:quic_connection_steps} descreve o \textit{handshake} TLS apen
 \subsection{Etapas de conexão do QUIC}
 \label{sec:quic_connection_steps}
 
-No fluxo padrão, denominado \textit{handshake} 1-RTT, o QUIC combina o estabelecimento da conexão de transporte com o \textit{handshake} TLS~1.3: os parâmetros de transporte de cada \textit{endpoint} são trocados em uma extensão do próprio TLS \citep{rfc9001}. Assim, o cliente pode enviar dados de aplicação após um único RTT, enquanto a combinação de TCP e TLS~1.3 exige dois RTTs: um para o \textit{3-way handshake} do TCP e outro para o \textit{handshake} TLS. A Figura~\ref{fig:quic_vs_tcptls} compara os dois fluxos.
+No fluxo padrão, denominado \textit{handshake} \texttt{1-RTT}, o QUIC combina o estabelecimento da conexão de transporte com o \textit{handshake} TLS~1.3: os parâmetros de transporte de cada \textit{endpoint} são trocados em uma extensão do próprio TLS \citep{rfc9001}. Assim, o cliente pode enviar dados de aplicação após um único RTT, enquanto a combinação de TCP e TLS~1.3 exige dois RTTs: um para o \textit{3-way handshake} do TCP e outro para o \textit{handshake} TLS. A Figura~\ref{fig:quic_vs_tcptls} compara os dois fluxos.
 
 \begin{figure}[!ht]
         \centering
@@ -411,7 +411,7 @@ No fluxo padrão, denominado \textit{handshake} 1-RTT, o QUIC combina o estabele
         \label{fig:quic_vs_tcptls}
 \end{figure}
 
-O \textit{handshake} 1-RTT ocorre da seguinte forma. O cliente envia um pacote \texttt{Initial} com a mensagem \texttt{ClientHello}, que contém sua parcela da troca de chaves (EC)DHE e seus parâmetros de transporte.
+O \textit{handshake} \texttt{1-RTT} ocorre da seguinte forma. O cliente envia um pacote \texttt{Initial} com a mensagem \texttt{ClientHello}, que contém sua parcela da troca de chaves (EC)DHE e seus parâmetros de transporte.
 
 O servidor responde com um pacote \texttt{Initial}, que contém a confirmação de recebimento (\textit{frame} \texttt{ACK}) do pacote do cliente e a mensagem \texttt{ServerHello}, e com um pacote \texttt{Handshake}, que contém as mensagens \texttt{EncryptedExtensions}, \texttt{Certificate}, \texttt{CertificateVerify} e \texttt{Finished}. Esses pacotes podem ser agrupados em um mesmo datagrama UDP (\textit{coalescing}).
 
@@ -426,24 +426,23 @@ Ao receber o \texttt{Finished} do cliente, o servidor considera o \textit{handsh
 \begin{figure}[!ht]
         \centering
         \includegraphics[width=0.9\linewidth]{fig/QUIC/quic_connection_steps.png}
-        \caption{Diagrama de tempo do \textit{handshake} 1-RTT do QUIC. Fonte: elaborado com base em \citep{rfc9000}.}
+        \caption{Diagrama de tempo do \textit{handshake} \texttt{1-RTT} do QUIC. Fonte: elaborado com base em \citep{rfc9000}.}
         \label{fig:quic_connection_steps_time_diagram}
 \end{figure}
 
 \subsection{Retomada de sessão (0-RTT)}
 \label{sec:0rtt_connection_recovery}
 
-A retomada de sessão permite que o cliente utilize informações de uma conexão anterior com o mesmo servidor para enviar dados de aplicação antes de concluir um novo \textit{handshake}. A partir de uma chave pré-compartilhada (PSK), obtida por meio de um \textit{session ticket} do TLS~1.3, o cliente deriva as chaves 0-RTT e envia esses dados junto ao primeiro pacote \texttt{Initial}, sem aguardar uma resposta do servidor \citep{rfc9001}. O restante da negociação segue o fluxo 1-RTT. A Figura~\ref{fig:quic0rtt_vs_tcptls} compara a retomada de sessão no QUIC e no TCP com TLS.
+A retomada de sessão permite que o cliente utilize informações de uma conexão anterior com o mesmo servidor para enviar dados de aplicação antes de concluir um novo \textit{handshake}. A partir de uma chave pré-compartilhada (PSK), obtida por meio de um \textit{session ticket} do TLS~1.3, o cliente deriva as chaves \texttt{0-RTT} e envia esses dados junto ao primeiro pacote \texttt{Initial}, sem aguardar uma resposta do servidor \citep{rfc9001}. O restante da negociação segue o fluxo \texttt{1-RTT}. A Figura~\ref{fig:quic0rtt_vs_tcptls} compara a retomada de sessão no QUIC e no TCP com TLS.
 
 \begin{figure}[!ht]
         \centering
         \includegraphics[width=0.8\linewidth]{fig/QUIC/quic0rtt_vs_tcptls_cmp.png}
-        \caption{Comparação da retomada de sessão no QUIC (0-RTT) e no TCP com TLS. Fonte: adaptado de \citep{marx2020quic}.}
+        \caption{Comparação da retomada de sessão no QUIC (\texttt{0-RTT}) e no TCP com TLS. Fonte: adaptado de \citep{marx2020quic}.}
         \label{fig:quic0rtt_vs_tcptls}
 \end{figure}
 
-Os dados 0-RTT não oferecem sigilo futuro (\textit{forward secrecy}) e estão sujeitos à reprodução de mensagens (\textit{replay}), conforme discutido na Seção~\ref{sec:quic_packet_protection}. Por isso, a aplicação deve limitar os dados antecipados a operações que possam ser repetidas com segurança \citep{rfc9001}. Esse recurso não foi avaliado nos experimentos deste trabalho.
-
+Os dados \texttt{0-RTT} não oferecem sigilo futuro (\textit{forward secrecy}) e estão sujeitos à reprodução de mensagens (\textit{replay}), conforme citado na Seção~\ref{sec:quic_packet_protection}. Por isso, a aplicação deve limitar os dados antecipados a operações que possam ser repetidas com segurança \citep{rfc9001}.
 \begin{comment}
     
 A retomada de sessão permite que o cliente reaproveite o estado criptográfico de uma conexão anterior com o mesmo servidor. Nessa conexão anterior, o servidor envia ao cliente um \textit{session ticket} do TLS~1.3, a partir do qual o cliente obtém uma PSK. Em uma nova conexão, o cliente deriva dessa PSK as chaves 0-RTT e envia dados de aplicação, em \textit{frames} \texttt{STREAM}, no primeiro voo de mensagens, junto ao pacote \texttt{Initial}, sem aguardar nenhum RTT. O restante do \textit{handshake} segue o fluxo 1-RTT. A Figura~\ref{fig:quic0rtt_vs_tcptls} compara a retomada de sessão no QUIC e no TCP com TLS, e a Figura~\ref{fig:quic_connection_resumption_time_diagram} ilustra o fluxo de pacotes.
@@ -470,7 +469,7 @@ Os dados 0-RTT, entretanto, estão sujeitos a ataques de \textit{replay}, mencio
 \subsection{Negociação de versão}
 \label{sec:quic_version_negotiation}
 
-A negociação de versão permite que cliente e servidor estabeleçam uma versão comum do QUIC. Ao receber do cliente um pacote com uma versão que não suporta, o servidor responde com um pacote de \textit{Version Negotiation}, que lista as versões aceitas. O cliente então seleciona uma dessas versões e inicia uma nova tentativa de conexão com um novo pacote \texttt{Initial}, o que acrescenta um RTT ao estabelecimento da conexão, conforme a Figura~\ref{fig:quic_version_negotiation_time_diagram}. O servidor não mantém estado durante esse processo e pode limitar o número de pacotes de \textit{Version Negotiation} que envia \citep{rfc9000}. Como esse pacote não é autenticado, o QUICv1 não protege a escolha de versão contra ataques de \textit{downgrade}; o RFC~9368 \citep{rfc9368} define um mecanismo complementar para essa proteção.
+A negociação de versão permite que cliente e servidor estabeleçam uma versão comum do QUIC. Ao receber do cliente um pacote com uma versão que não suporta, o servidor responde com um pacote de \texttt{Version Negotiation}, que lista as versões aceitas. O cliente então seleciona uma dessas versões e inicia uma nova tentativa de conexão com um novo pacote \texttt{Initial}, o que acrescenta um RTT ao estabelecimento da conexão, conforme a Figura~\ref{fig:quic_version_negotiation_time_diagram}. O servidor não mantém estado durante esse processo e pode limitar o número de pacotes de \texttt{Version Negotiation} que envia \citep{rfc9000}. Como esse pacote não é autenticado, o QUICv1 não protege a escolha de versão contra ataques de \textit{downgrade}; o RFC~9368 \citep{rfc9368} define um mecanismo complementar para essa proteção.
 
 \begin{figure}[!ht]
         \centering
@@ -482,7 +481,7 @@ A negociação de versão permite que cliente e servidor estabeleçam uma versã
 \subsection{Validação de endereço}
 \label{sec:quic_address_validation}
 
-A validação de endereço permite ao servidor confirmar que o cliente recebe pacotes no endereço de origem declarado \citep{rfc9000}. O mecanismo impede que o servidor seja utilizado em ataques de amplificação, nos quais o atacante forja o endereço de origem dos pacotes com o endereço da vítima (\textit{spoofing}), de modo que o servidor envie à vítima um volume de tráfego superior ao gerado pelo atacante. Para isso, o servidor limita os dados enviados a endereços ainda não validados ou valida o endereço antes de prosseguir com o \textit{handshake}. A validação não oferece garantias sobre o conteúdo transmitido; ela apenas confirma que o cliente recebe as respostas no endereço declarado.
+A validação de endereço (\textit{Address Validation}) permite ao servidor confirmar que o cliente recebe pacotes no endereço de origem declarado \citep{rfc9000}. O mecanismo impede que o servidor seja utilizado em ataques de amplificação, nos quais o atacante forja o endereço de origem dos pacotes com o endereço da vítima (\textit{spoofing}), de modo que o servidor envie à vítima um volume de tráfego superior ao gerado pelo atacante. Para isso, o servidor limita os dados enviados a endereços ainda não validados ou valida o endereço antes de prosseguir com o \textit{handshake}. A validação não oferece garantias sobre o conteúdo transmitido; ela apenas confirma que o cliente recebe as respostas no endereço declarado.
 
 Antes da validação, o servidor não pode enviar a um endereço mais do que o triplo dos bytes recebidos desse endereço \citep{rfc9000}. Esse limite de amplificação restringe o tráfego que um atacante consegue direcionar a uma vítima por meio do servidor.
 
@@ -501,7 +500,7 @@ Quando o servidor deseja validar o endereço do cliente antes de prosseguir com 
         \label{fig:quic_retry_with_token}
 \end{figure}
  
-O servidor também pode fornecer ao cliente, durante uma conexão estabelecida, um \textit{token} por meio do \textit{frame} \texttt{NEW\_\allowbreak{}TOKEN} \citep{rfc9000}. O cliente inclui esse \textit{token} no pacote \texttt{Initial} de uma conexão futura, o que permite ao servidor validar o endereço sem o RTT adicional do \texttt{Retry} e, assim, enviar respostas maiores, como as respostas a requisições 0-RTT, sem as restrições do limite de amplificação.
+O servidor também pode fornecer ao cliente, durante uma conexão estabelecida, um \textit{token} por meio do \textit{frame} \texttt{NEW\_\allowbreak{}TOKEN} \citep{rfc9000}. O cliente inclui esse \textit{token} no pacote \texttt{Initial} de uma conexão futura, o que permite ao servidor validar o endereço sem o RTT adicional do \texttt{Retry} e, assim, enviar respostas maiores, como as respostas a requisições \texttt{0-RTT}, sem as restrições do limite de amplificação.
 
 \subsection{Funcionamento dos \textit{Connection IDs}}
 \label{sec:connection_ids_operation}
@@ -512,7 +511,9 @@ Ao longo da conexão, cada \textit{endpoint} fornece ao outro novos \textit{Conn
 
 Um \textit{endpoint} pode utilizar \textit{Connection IDs} de tamanho zero quando o endereço e a porta bastam para identificar a conexão. Nesse caso, porém, o \textit{endpoint} depende desses valores para associar os pacotes e perde o suporte a recursos como a migração de conexão e a tolerância a \textit{NAT rebinding}, relevantes para as técnicas de \textit{hole punching} discutidas na Seção~\ref{sec:quic_hole_punching}.
 
-\cgk{Confirmar quando escrever sobre QUIC holepunching se isso realmente se aplica}
+\begin{comment}
+\cgk{Confirmar quando escrever sobre \textit{QUIC hole punching} se isso realmente se aplica}
+\end{comment}
 
 O ciclo de vida dos \textit{Connection IDs}, incluindo a emissão de novos identificadores e o momento de seu descarte, é definido no RFC~9000 \citep{rfc9000} e não é detalhado neste trabalho.
 
@@ -522,7 +523,7 @@ Esta seção apresenta os mecanismos de comunicação entre os \textit{endpoints
 
 \begin{itemize}
     \item A Seção~\ref{sec:quic_streams} descreve a criação e o gerenciamento de \textit{streams};
-    \item A Seção~\ref{sec:quic_acknowledgement} descreve os espaços de números de pacote e os mecanismos de confirmação de recebimento e de retransmissão;
+    \item A Seção~\ref{sec:quic_acknowledgement} descreve os espaços de números de pacote e os mecanismos de confirmação de recebimento e retransmissão;
     \item A Seção~\ref{sec:quic_flow_control} descreve o controle de fluxo;
     \item A Seção~\ref{sec:quic_connection_migration} descreve a migração de conexão após a mudança de endereço IP ou de porta de um dos \textit{endpoints}.
 \end{itemize}
@@ -566,7 +567,7 @@ O QUIC confirma o recebimento de pacotes por meio de \textit{frames} \texttt{ACK
 
 Quando ocorre uma perda, o QUIC retransmite as informações necessárias em novos pacotes, com novos números, em vez de reenviar o pacote original. Assim, o emissor distingue a confirmação de uma transmissão original daquela de uma retransmissão. Informações que já perderam sua utilidade, como confirmações antigas, não precisam ser retransmitidas \citep{rfc9000, rfc9002}.
 
-Os números de pacote são organizados em três espaços independentes: \textit{Initial}, \textit{Handshake} e \textit{Application Data}, este último compartilhado pelos pacotes \texttt{0-RTT} e \texttt{1-RTT}. Em cada espaço, os números crescem monotonicamente e nunca são reutilizados. Os detalhes dos mecanismos de detecção de perdas e controle de congestionamento são definidos no RFC~9002 \citep{rfc9002} e estão fora do escopo deste trabalho.
+Os números de pacote são organizados em três espaços independentes: \texttt{Initial}, \texttt{Handshake} e \texttt{Application Data}; este último é compartilhado pelos pacotes \texttt{0-RTT} e \texttt{1-RTT}. Em cada espaço, os números crescem monotonicamente e nunca são reutilizados. Os detalhes dos mecanismos de detecção de perdas e controle de congestionamento são definidos no RFC~9002 \citep{rfc9002} e estão fora do escopo deste trabalho.
 
 \begin{comment}
     
@@ -674,26 +675,14 @@ Este trabalho distingue dois tipos de migração, denominação que não consta 
 \section{QUIC Hole Punching}
 \label{sec:quic_hole_punching}
 
-O QUIC possui propriedades que favorecem técnicas de travessia de NAT. Por operar sobre UDP, beneficia-se do comportamento dos NATs que torna o \textit{hole punching} UDP mais eficaz que o TCP (Seção~\ref{sec:udp_hole_punching}). Além disso, a validação de caminho e a migração de conexão, embora não tenham sido projetadas para esse fim, podem apoiar essas técnicas (Seção~\ref{sec:quic_path_validation}).
+O QUIC possui propriedades que favorecem a travessia de NAT. Por operar sobre UDP, o protocolo se beneficia da maior eficácia do \textit{hole punching} UDP em relação ao TCP (Seção~\ref{sec:udp_hole_punching}). Além disso, a validação de caminho e a migração de conexão, embora não tenham sido projetadas para esse fim, podem apoiar essas técnicas (Seção~\ref{sec:quic_path_validation}).
 
-Entre as propostas existentes, \citep{draft-seemann-quic-nat-traversal} apresenta duas formas de travessia de NAT com o QUIC.
+Entre as propostas existentes, \citet{draft-seemann-quic-nat-traversal} descreve duas formas de travessia de NAT com o QUIC.
 
-A primeira utiliza o ICE (Seção~\ref{sec:ice}) sem alterações no QUIC e exige apenas que pacotes QUIC e STUN possam ser demultiplexados na mesma porta. Os \textit{peers} coletam seus candidatos ICE, trocam-nos por meio de um servidor de sinalização e executam as verificações de conectividade do ICE (Seção~\ref{sec:ice_connectivity_checks}). Concluído o \textit{hole punching}, os \textit{peers} estabelecem a conexão QUIC pelo par de candidatos selecionado.
+A primeira utiliza o ICE (Seção~\ref{sec:ice}) sem alterações no QUIC e exige apenas que pacotes QUIC e STUN sejam demultiplexados na mesma porta UDP. Os \textit{peers} coletam seus candidatos ICE, trocam-nos por meio de um canal de sinalização e executam as verificações de conectividade do ICE (Seção~\ref{sec:ice_connectivity_checks}). Concluído o \textit{hole punching}, os \textit{peers} estabelecem a conexão QUIC pelo par de candidatos selecionado, com um deles no papel de cliente e o outro no de servidor.
 
-A segunda abordagem integra a travessia de NAT ao próprio QUIC, com modificações em \textit{frames} e no processo de validação de caminho (Seção~\ref{sec:quic_path_validation}). Nessa abordagem, cliente e servidor estabelecem inicialmente uma conexão por meio de um terceiro servidor com endereço público, como um \textit{relay} ou \textit{proxy}. O cliente obtém seus candidatos de endereço, e o servidor anuncia os seus ao cliente por meio de um novo tipo de \textit{frame}. O cliente define a ordem de teste dos candidatos e sinaliza ao servidor o início do \textit{hole punching}; ambos iniciam então, simultaneamente, a validação de caminho para o mesmo par de candidatos, o que abre os mapeamentos nos NATs de ambos os lados. Trabalhos como \citep{draft-bruynooghe-n0-quic-nat-traversal} estendem essa abordagem com técnicas como o QUIC \textit{multipath} \citep{draft-quic-multipath-06}.
+A segunda abordagem integra a travessia de NAT ao próprio QUIC, por meio de novos \textit{frames} e de uma modificação na validação de caminho (Seção~\ref{sec:quic_path_validation}). Nessa abordagem, cliente e servidor estabelecem inicialmente uma conexão por meio de um intermediário com endereço público, como um \textit{relay} ou um \textit{proxy}. O cliente obtém seus candidatos de endereço, e o servidor anuncia os seus ao cliente por meio de um novo tipo de \textit{frame}. O cliente define a ordem de teste dos pares de candidatos e sinaliza ao servidor o início do \textit{hole punching}. Ambos iniciam, então, simultaneamente, a validação de caminho para o mesmo par de candidatos, o que abre os mapeamentos nos NATs de ambos os lados. Após a validação, o cliente migra a conexão para o caminho direto. Trabalhos como o de \citet{draft-bruynooghe-n0-quic-nat-traversal} adaptam essa abordagem à extensão \textit{multipath} do QUIC \citep{draft-quic-multipath-06}, que permite manter múltiplos caminhos ativos na mesma conexão.
 
-Essa abordagem exige alterações no protocolo, como três novos tipos de \textit{frame}, e permite que o servidor inicie a validação de caminho, o que o RFC~9000 não admite. O próprio \textit{draft} reconhece que essa extensão expõe a conexão a um risco semelhante ao de ataques de amplificação, sem apresentar uma mitigação completa.
+Essa abordagem exige alterações no protocolo, como a introdução de três novos tipos de \textit{frame}, e permite que o servidor inicie a validação do caminho. O RFC~9000 não admite esse comportamento, pois nele apenas o cliente inicia a validação de um novo caminho. O próprio \textit{draft} reconhece que essa extensão expõe a conexão a um risco semelhante ao de ataques de amplificação, pois o servidor passa a enviar pacotes a endereços ainda não validados, e não apresenta uma mitigação completa.
 
-Além dessas propostas, \citep{liang2024nat} compara técnicas de \textit{hole punching} TCP (Seção~\ref{sec:tcp_hole_punching}) e QUIC. Até a escrita deste trabalho, entretanto, o IETF não publicou nenhum RFC sobre travessia de NAT com o QUIC, e questões como o risco de amplificação permanecem em aberto.
-
-\begin{comment}
-    
-\section{QUIC para Aplicações P2P}
-
-\cgk{verificar se isso não vai pra outro lugar}
-
-\subsection{QUIC para Aplicações P2P real-time}
-
-\subsection{QUIC para Aplicações P2P IoT}
-
-\end{comment}
+Além dessas propostas, \citet{liang2024nat} compara técnicas de \textit{hole punching} TCP (Seção~\ref{sec:tcp_hole_punching}) e QUIC. Até a conclusão deste trabalho, entretanto, o IETF não publicou nenhum RFC sobre travessia de NAT com o QUIC, e questões como o risco de amplificação permanecem em aberto.

@@ -1,8 +1,7 @@
 # Regressões com Patchbay
 
 Runner Rust/Patchbay 0.7.0 que cria peers e roteadores em namespaces Linux,
-executa os programas C e verifica comunicação real. Contexto, correções e
-pendências estão em [docs/repository-context.md](../../docs/repository-context.md).
+executa os programas C e verifica comunicação real.
 
 ## Preparação e execução
 

@@ -3,17 +3,11 @@
 
 A Internet das Coisas (IoT, do inglês \textit{Internet of Things}) tem se destacado como um campo em expansão, impulsionado pelo uso crescente de ferramentas de automação no cotidiano. Essas ferramentas demandam o controle e a gerência ágeis de dados, tarefas frequentemente vinculadas à leitura de sensores e à atuação em tempo real sobre dispositivos de uso diário. Esse cenário abrange diversas áreas, como segurança patrimonial, controle de veículos autônomos e medicina.
 
-Nesse contexto, a comunicação entre os dispositivos deve atender aos requisitos de dependabilidade e segurança descritos em \citep{Avizienis2004}, pois falhas, indisponibilidade ou comprometimento dos dados podem afetar diretamente o funcionamento dos sistemas e, em aplicações críticas, gerar consequências graves. Além disso, o grande volume de dados potencialmente sensíveis transmitidos por esses dispositivos torna essencial a confidencialidade das informações. Nesse sentido, mecanismos criptográficos devem proteger o conteúdo das mensagens e, quando possível, os metadados da comunicação, frequentemente expostos nos cabeçalhos (\textit{headers}) dos protocolos e capazes de revelar informações sobre a conexão. Esses metadados podem revelar padrões de comunicação e outras informações que não deveriam ser acessíveis a terceiros não autorizados.
+Nesse contexto, a comunicação entre os dispositivos deve atender aos requisitos de dependabilidade e segurança descritos por \citet{Avizienis2004}, pois falhas, indisponibilidade ou comprometimento dos dados podem afetar diretamente o funcionamento dos sistemas e, em aplicações críticas, gerar consequências graves. Além disso, o volume de dados potencialmente sensíveis transmitidos por esses dispositivos torna essencial a confidencialidade das informações. Nesse sentido, mecanismos criptográficos devem proteger o conteúdo das mensagens e, quando possível, os metadados da comunicação, frequentemente expostos nos cabeçalhos (\textit{headers}) dos protocolos. Esses metadados podem revelar padrões de comunicação e outras informações que não deveriam ser acessíveis a terceiros não autorizados.
 
-Este trabalho tem origem em um projeto desenvolvido em conjunto com a DATACOM, cujo objetivo era viabilizar a comunicação entre aplicações situadas em redes distintas, com o mínimo de infraestrutura intermediária. O projeto explorou técnicas de travessia de NAT (\textit{NAT traversal}) e o tunelamento de tráfego TCP sobre UDP, tomando como base o Chownat. A partir desse desenvolvimento, o presente trabalho aprofunda a integração do QUIC com mecanismos de estabelecimento de conectividade baseados em ICE e considera sua aplicação à comunicação entre \textit{gateways} de sistemas IoT.
+Este trabalho tem origem em um projeto desenvolvido em conjunto com a DATACOM, cujo objetivo era viabilizar a comunicação entre aplicações situadas em redes distintas, com o mínimo de infraestrutura intermediária. O projeto explorou técnicas de travessia de NAT (\textit{NAT traversal}) e o tunelamento de tráfego TCP sobre UDP, com base no Chownat. A partir desse desenvolvimento, o presente trabalho aprofunda a integração do QUIC com mecanismos de estabelecimento de conectividade baseados em ICE e considera sua aplicação à comunicação entre \textit{gateways} de sistemas IoT.
 
-A solução proposta consiste em uma infraestrutura de comunicação ponto a ponto entre \textit{gateways} de sistemas IoT situados em redes distintas. A proposta integra um modelo de arquitetura baseado no padrão WebRTC (\textit{Web Real-Time Communication}) \citep{WebRTCForTheCurious} que gerencia aplicações baseadas em TCP por meio de conexões locais e utiliza o protocolo de transporte QUIC \citep{rfc9000} para transportar seus dados entre os \textit{gateways}, utilizando o protocolo ICE \citep{rfc8445} para descobrir e selecionar caminhos de comunicação. O escopo experimental concentra-se no transporte entre \textit{hosts} de propósito geral que representam os \textit{gateways}, sem incluir a aquisição de dados por sensores ou a comunicação local com dispositivos IoT. A proposta visa aprimorar o seguinte conjunto de atributos de segurança e dependabilidade na transmissão de dados em aplicações IoT:
-
-\begin{comment}
-    
-Este trabalho propõe uma infraestrutura de rede para a transmissão de dados com baixa latência em uma arquitetura ponto a ponto (P2P, do inglês \textit{peer-to-peer}), baseada no padrão WebRTC (\textit{Web Real-Time Communication}) \citep{WebRTCForTheCurious} e no protocolo de transporte QUIC\footnote{Embora tenha surgido como acrônimo de \textit{Quick UDP Internet Connections}, o termo QUIC é tratado como nome, e não como sigla, em sua especificação \citep{rfc9000}.} \citep{rfc9000}. A proposta visa aprimorar o seguinte conjunto de atributos de segurança e dependabilidade na transmissão de dados em aplicações IoT:
-
-\end{comment}
+A solução proposta consiste em uma infraestrutura de comunicação ponto a ponto entre \textit{gateways} de sistemas IoT situados em redes distintas. A infraestrutura mantém as aplicações baseadas em TCP em conexões locais, transporta seus dados entre os \textit{gateways} sobre o protocolo QUIC \citep{rfc9000} e utiliza o protocolo ICE \citep{rfc8445} para descobrir e selecionar os caminhos de comunicação. A proposta visa aprimorar o seguinte conjunto de atributos de segurança e dependabilidade na transmissão de dados em aplicações IoT:
 
 \begin{itemize}
     \item \textbf{Confidencialidade:} garantia de que os dados transmitidos sejam acessíveis somente a entidades autorizadas.
@@ -21,107 +15,50 @@ Este trabalho propõe uma infraestrutura de rede para a transmissão de dados co
     \item \textbf{Disponibilidade:} prontidão do sistema para fornecer o serviço corretamente quando solicitado.
     \item \textbf{Integridade:} ausência de alterações indevidas no sistema, incluindo modificações não autorizadas nos dados transmitidos.
 \end{itemize}
-\cfm{ficou boa a intro}
+
+A Figura~\ref{fig:quic_p2p_architecture} apresenta uma visão geral da solução. A arquitetura considerada neste trabalho é composta por dois \textit{peers} e por servidores auxiliares empregados pelos mecanismos de travessia de NAT. Cada \textit{peer} é um \textit{gateway} associado a um ou mais dispositivos IoT ou a uma aplicação consumidora dos dados gerados por esse dispositivo, representados na figura como Dispositivo~1 e Dispositivo~2. Essa aplicação pode ser executada em um sistema de propósito geral ou em outro dispositivo IoT. Os \textit{gateways} executam a infraestrutura proposta e são distintos dos roteadores de acesso, responsáveis pelo encaminhamento dos pacotes e pela tradução de endereços nas redes representadas. As aplicações locais assumem os papéis de cliente e servidor, enquanto os \textit{gateways} viabilizam a comunicação entre elas.
+
+Na figura, a linha tracejada indica o caminho QUIC direto entre os \textit{gateways}, estabelecido por \textit{hole punching}. Os servidores \textit{relay} oferecem o caminho alternativo quando a conexão direta não é possível.
+
+\begin{figure}[!ht]
+    \centering
+    \input{fig/relationship/quic_p2p_architecture}
+    \caption{Visão geral da arquitetura proposta: caminho QUIC direto entre os \textit{gateways} e servidores auxiliares de sinalização, STUN e \textit{relay}.}
+    \label{fig:quic_p2p_architecture}
+\end{figure}
+
 \section{Motivação}
 
 Em sistemas IoT organizados por meio de \textit{gateways}, esses nós assumem a responsabilidade pela comunicação externa das aplicações associadas aos dispositivos locais. Quando situados em redes privadas distintas, os \textit{gateways} precisam de mecanismos que permitam estabelecer conectividade através de NATs. Nesse cenário, a comunicação ponto a ponto pode reduzir a dependência de servidores intermediários para o transporte contínuo dos dados, mantendo serviços auxiliares para a descoberta e o estabelecimento das conexões.
 
-O WebRTC \citep{WebRTCForTheCurious} é um padrão aberto criado para viabilizar a comunicação em tempo real entre navegadores, com baixa latência e infraestrutura reduzida. O padrão estabelece comunicação direta entre pares (\textit{peers}) situados em sub-redes (\textit{subnets}) distintas por meio de técnicas de travessia de NAT (\textit{NAT traversal}) \citep{rfc5128}, isto é, técnicas que permitem a comunicação através de tradutores de endereços de rede (NAT, do inglês \textit{Network Address Translator}). Protocolos como STUN (\textit{Session Traversal Utilities for NAT}), TURN (\textit{Traversal Using Relays around NAT}) e ICE (\textit{Interactive Connectivity Establishment}) implementam essas técnicas. O WebRTC serve como referência arquitetural para este trabalho, especialmente pela organização dos mecanismos de sinalização e estabelecimento de conectividade. A solução proposta utiliza esses mecanismos em conjunto com QUIC para a comunicação entre gateways.
+A comunicação direta entre pares (\textit{peers}) situados em redes privadas distintas depende de técnicas de travessia de NAT \citep{rfc5128}, isto é, técnicas que permitem a comunicação através de tradutores de endereços de rede (NAT, do inglês \textit{Network Address Translator}). Os protocolos STUN (\textit{Session Traversal Utilities for NAT}), TURN (\textit{Traversal Using Relays around NAT}) e ICE (\textit{Interactive Connectivity Establishment}), padronizados pelo IETF, implementam essas técnicas. O WebRTC (\textit{Web Real-Time Communication}) \citep{WebRTCForTheCurious}, padrão aberto para comunicação em tempo real entre navegadores, é o exemplo mais difundido do uso conjunto desses protocolos. Por isso, este trabalho adota o WebRTC como referência arquitetural para a organização da sinalização e do estabelecimento de conectividade. A solução proposta, entretanto, não utiliza a pilha WebRTC: ela combina diretamente o ICE, o STUN e o TURN com o QUIC na comunicação entre \textit{gateways}.
 
-O QUIC \citep{rfc9000}, por sua vez, é um protocolo de transporte que opera sobre o UDP (\textit{User Datagram Protocol}) e foi desenvolvido para superar limitações da comunicação baseada em TCP (\textit{Transmission Control Protocol}). Sua concepção está associada à redução da latência e à integração de mecanismos de segurança, inicialmente motivadas pelas necessidades das conexões HTTP (\textit{Hypertext Transfer Protocol}) na Web \citep{marx2020quic}. O QUIC implementa sobre UDP mecanismos de entrega confiável e controle de congestionamento, além de integrar mecanismos de proteção criptográfica ao estabelecimento da conexão. Sua implementação no espaço de usuário também facilita a evolução do protocolo sem depender de alterações no núcleo (\textit{kernel}) dos sistemas operacionais. Essas características motivam a investigação do QUIC como transporte externo entre os gateways. A proposta mantém a interface TCP local das aplicações existentes e transporta seus dados pelo caminho estabelecido com ICE, buscando facilitar a integração sem exigir mudanças no protocolo utilizado por essas aplicações.
+O QUIC \citep{rfc9000}, por sua vez, é um protocolo de transporte que opera sobre o UDP (\textit{User Datagram Protocol}) e foi desenvolvido para superar limitações da comunicação baseada em TCP (\textit{Transmission Control Protocol}). Sua concepção está associada à redução da latência e à integração de mecanismos de segurança, inicialmente motivadas pelas necessidades das conexões HTTP (\textit{Hypertext Transfer Protocol}) na Web \citep{marx2020quic}. O QUIC implementa sobre UDP mecanismos de entrega confiável e controle de congestionamento, além de integrar mecanismos de proteção criptográfica ao estabelecimento da conexão. Sua implementação no espaço de usuário também facilita a evolução do protocolo sem depender de alterações no núcleo (\textit{kernel}) dos sistemas operacionais. Essas características motivam a investigação do QUIC como transporte externo entre os \textit{gateways}. A proposta mantém a interface TCP local das aplicações existentes e transporta seus dados pelo caminho estabelecido com ICE, buscando facilitar a integração sem exigir mudanças no protocolo utilizado por essas aplicações.
 
 \section{Objetivos}
 
-Este trabalho tem por objetivo desenvolver e avaliar uma infraestrutura de comunicação ponto a ponto entre \textit{gateways} de sistemas IoT situados em redes distintas, capaz de integrar aplicações legadas baseadas em TCP a um transporte externo sobre QUIC. A organização da solução tem como referência a arquitetura do WebRTC, especialmente quanto às etapas de sinalização e estabelecimento de conectividade, utilizando ICE para descobrir e selecionar caminhos de comunicação entre os \textit{gateways}. A proposta mantém as conexões TCP das aplicações na interface local de \textit{loopback} e transporta seus dados via QUIC até o \textit{gateway} remoto, buscando preservar a interface de comunicação das aplicações e reduzir a necessidade de modificações em sua implementação.
+Este trabalho tem por objetivo desenvolver e avaliar uma infraestrutura de comunicação ponto a ponto entre \textit{gateways} de sistemas IoT situados em redes distintas, capaz de integrar aplicações legadas baseadas em TCP a um transporte externo sobre QUIC. A solução utiliza o ICE para descobrir e selecionar caminhos de comunicação entre os \textit{gateways}. A proposta mantém as conexões TCP das aplicações na interface local de \textit{loopback} e transporta seus dados via QUIC até o \textit{gateway} remoto, de modo a preservar a interface de comunicação das aplicações e reduzir a necessidade de modificações em sua implementação.
 
-A avaliação concentra-se no funcionamento da infraestrutura entre \textit{hosts} de propósito geral que representam os \textit{gateways}. Os atributos de confidencialidade, integridade, confiabilidade e disponibilidade apresentados anteriormente orientam a discussão dos mecanismos utilizados e das limitações da solução, considerando as configurações e os cenários efetivamente avaliados. Para alcançar o objetivo geral, são definidos os seguintes objetivos específicos:
-
-\begin{comment}
-    
-\hl{falar de nat/hole punch nos específicos}
-
-\end{comment}
+Os atributos de confidencialidade, integridade, confiabilidade e disponibilidade apresentados anteriormente orientam a discussão dos mecanismos utilizados e das limitações da solução, considerando as configurações e os cenários efetivamente avaliados. Para alcançar o objetivo geral, são definidos os seguintes objetivos específicos:
 
 \begin{itemize}
-
 \item Desenvolver uma interface modular de comunicação que permita integrar diferentes protocolos de transporte e mecanismos de estabelecimento de conectividade, tomando como ponto de partida a arquitetura do Chownat.
-
-\item Implementar o transporte de dados das aplicações TCP locais sobre QUIC, utilizando a biblioteca OpenSSL, de modo a preservar a interface de comunicação dessas aplicações nos \textit{gateways}.
-
+\item Implementar o transporte de dados das aplicações TCP locais sobre QUIC, utilizando a biblioteca \texttt{OpenSSL}, de modo a preservar a interface de comunicação dessas aplicações nos \textit{gateways}.
 \item Integrar o protocolo ICE por meio da biblioteca \texttt{libnice}, permitindo a descoberta e a seleção de caminhos de comunicação entre os \textit{gateways}, incluindo caminhos diretos e caminhos intermediados por servidores TURN.
-
-\item Verificar o funcionamento da infraestrutura em topologias de rede controladas e sob diferentes configurações de NAT, considerando o estabelecimento de conectividade por \textit{UDP hole punching} ou por retransmissão via TURN, a transferência de dados e o encerramento das conexões.
-
+\item Verificar o funcionamento da infraestrutura em topologias de rede controladas e sob diferentes configurações de NAT, considerando o estabelecimento de conectividade por \textit{hole punching} UDP ou por retransmissão via TURN, a transferência de dados e o encerramento das conexões.
+\item Comparar conceitualmente a abordagem proposta com a comunicação mediada por servidor e com a comunicação P2P baseada em TCP \textit{hole punching}.
 \end{itemize}
 
-O escopo deste trabalho concentra-se na comunicação externa entre gateways de uma arquitetura IoT. Nos experimentos, esses gateways são representados por hosts de propósito geral que executam a infraestrutura proposta e aplicações locais de geração e recepção de mensagens. Não são avaliadas a aquisição de dados por sensores, a comunicação entre dispositivos IoT e gateways, a execução das bibliotecas em microcontroladores ou a eficiência energética desses dispositivos. Quando forem utilizados dados sintéticos, suas características serão explicitadas na metodologia experimental.
-
-\begin{comment}
-    
-The \textbf{strategic} objective of this undergraduate thesis is to enhance the performance of the Kyber workflow along with its underlying symmetric cryptographic primitives. This involves modifying the RS5 processor to support hardware accelerators for the key generation, encapsulation, and decapsulation phases of the algorithm. The work focuses on optimizing the Number Theoretic Transform (NTT) operation, the primary computational bottleneck, while also integrating standard RISC-V extensions to accelerate the essential SHA-2 and SHA-3 hashing and bit-manipulation tasks. To achieve this general goal, the \textbf{specific} objectives are:
-
-\begin{enumerate}[label=\Roman*]
-
-\item \label{obj_toolchain} {\bf Toolchain Modification}.\\
-     Modify and rebuild the compiler toolchain to support the custom XKYBER instructions.
-
-\item \label{obj_zknh} {\bf ZKNH Extension Integration}.\\
-     Integrate the ZKNH extension into the RS5 processor to accelerate SHA-2 cryptographic hashing, a feature specifically implemented to fulfill the requirements of the WIMED project.
-
-\item \label{obj_xkyber} {\bf XKYBER Custom Instruction Set}.\\
-    Port and integrate the XKYBER custom instruction set to optimize the core operations of the Kyber workflow. The original XKyber extension was developed in \citep{carlos24}. 
-
-\item \label{obj_zbkb} {\bf ZBKB Extension Addition}.\\
-     Add the ZBKB extension to accelerate SHA-3 bit-manipulation tasks.
-
-\item \label{obj_verification} {\bf Functional Verification and Evaluation}.\\
-     Verify the functional correctness of the integrated modules and evaluate the resulting performance improvements.
-
-\item \label{obj_synthesis} {\bf Post-Synthesis Analysis}.\\
-     Perform post-synthesis analysis to assess hardware resource utilization and achieve timing closure.
-
-\end{enumerate}
-\end{comment}
+O escopo deste trabalho concentra-se na comunicação externa entre \textit{gateways} de uma arquitetura IoT. Nos experimentos, esses \textit{gateways} são representados por \textit{hosts} de propósito geral que executam a infraestrutura proposta e aplicações locais de geração e recepção de mensagens com dados sintéticos. O trabalho não avalia a aquisição de dados por sensores, a comunicação entre dispositivos IoT e \textit{gateways}, a execução das bibliotecas em microcontroladores nem a eficiência energética desses dispositivos.
 
 \section{Organização do Documento}
 
 Este documento está organizado da seguinte forma:
 
 \begin{itemize}
-
-\item O Capítulo~\ref{chap:background} apresenta os fundamentos de comunicação necessários à compreensão da solução, incluindo os modelos de arquitetura de rede, o papel dos \textit{gateways}, o funcionamento do NAT, as técnicas de travessia de NAT e os protocolos STUN, TURN e ICE. Também são apresentados o Chownat e a relação da proposta com a arquitetura do WebRTC.
-
+\item O Capítulo~\ref{chap:background} apresenta os fundamentos de comunicação necessários à compreensão da solução, incluindo os modelos de arquitetura de rede, o papel dos \textit{gateways}, o funcionamento do NAT, as técnicas de travessia de NAT e os protocolos STUN, TURN e ICE. Também apresenta o Chownat e a relação da proposta com a arquitetura do WebRTC.
 \item O Capítulo~\ref{chap:quic} descreve o protocolo QUIC, abordando sua estrutura, os mecanismos de estabelecimento e manutenção das conexões, o transporte de dados e sua utilização em conjunto com técnicas de travessia de NAT.
-
-\item O Capítulo~\ref{chap:implementation} detalha a implementação da infraestrutura proposta, os ambientes e as topologias de teste, o desenvolvimento das interfaces de comunicação, o tunelamento das aplicações TCP locais e a integração das bibliotecas OpenSSL e \texttt{libnice} para a comunicação entre os \textit{gateways}.
-    
-\item O Capítulo~\ref{chap:results} apresenta a metodologia de avaliação e os resultados dos testes funcionais e a análise conceitual das abordagens de comunicação, discutindo o comportamento da infraestrutura nos cenários considerados e as limitações da avaliação experimental.
-
-\item O Capítulo~\ref{chap:conclusion} apresenta as conclusões do trabalho, relacionando os resultados aos objetivos estabelecidos e indicando possibilidades de continuidade e trabalhos futuros.
-
-
+\item O Capítulo~\ref{chap:implementation} detalha a implementação da infraestrutura proposta: a extensão do Chownat, a interface modular de comunicação, o tunelamento das aplicações TCP locais e a integração das bibliotecas \texttt{OpenSSL} e \texttt{libnice}. O capítulo também descreve as topologias e os ambientes experimentais.
+\item O Capítulo~\ref{chap:results} apresenta a metodologia de avaliação, os resultados dos testes funcionais e a análise conceitual das abordagens de comunicação, e discute o comportamento da infraestrutura nos cenários considerados e as limitações da avaliação experimental.
+\item O Capítulo~\ref{chap:conclusion} apresenta as conclusões do trabalho, relaciona os resultados aos objetivos estabelecidos e indica possibilidades de continuidade.
 \end{itemize}
-
-\begin{comment}
-    
-This work is organized as follows:
-
-\begin{itemize}
-    \item \Cref{chap:notation} defines the foundational terminology, acronyms, and mathematical notation utilized throughout the text, strictly aligned with the NIST FIPS 203 standard.
-    
-    \item \Cref{chap:background} provides the theoretical foundation required to comprehend this work, including the fundamentals of the ML-KEM algorithm, polynomial arithmetic over rings, and the NTT operation, which is the most complex part.
-    
-    \item \Cref{chap:xkyber} details the core contribution of this work: the integration of the custom scalar cryptographic extensions. It covers the structural evolution of the \texttt{kybermul} and \texttt{kybercompress} instructions, from the initial combinational versions to the final serialized implementations.
-    
-    \item \Cref{chap:results} evaluates the physical hardware implementation, presenting the ASIC synthesis results targeting a 28nm standard-cell library in GENUS and FPGA synthesis in Vivado. This chapter discusses execution latency, area footprints, power dissipation, and the necessary physical trade-offs required to achieve timing closure.
-   
-    \item \Cref{chap:conclusion} concludes this work, summarizing the findings regarding the physical cost of embedding post-quantum security into embedded processors, and points out directions for future research.
-\end{itemize}
-\end{comment}
-
-
-
-
-
-
-

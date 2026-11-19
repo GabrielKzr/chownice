@@ -42,7 +42,6 @@ completo passou1/1 em664,11s em2026-11-04. Ambos peers transferiram1097728 bytes
 por sentido; permissões renovadas241/482s e allocations/canais540s. No close,
 ambos receberam438 aos662s, repetiram e obtiveram Refresh lifetime0; as duas
 allocations foram removidas663s. Signaling confirmou TURN_RENEWED/TURN_RELEASED.
-A tentativa interrompida anteriormente é histórica. Estado detalhado na
-[memória da integração](../../../docs/memory/libnice-integration.md).
+A tentativa interrompida anteriormente é histórica.
 O prazo de espera por CLOSED no signaling é 720 s somente neste cenário;
 os testes curtos preservam o prazo anterior.

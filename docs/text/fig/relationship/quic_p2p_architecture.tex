@@ -1,0 +1,64 @@
+% Visão geral da arquitetura proposta (Figura fig:quic_p2p_architecture)
+% Requer: \usepackage{tikz} e \usetikzlibrary{positioning,calc,shapes.geometric,shapes.symbols}
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\sffamily\small,
+  node distance=6mm,
+  gw/.style={draw, circle, minimum size=15mm, align=center, inner sep=1pt, fill=blue!8},
+  dev/.style={draw, rectangle, minimum width=17mm, minimum height=8mm, align=center, fill=gray!10},
+  box/.style={draw, rectangle, minimum height=10mm, minimum width=13mm, align=center, inner sep=2pt},
+  srv/.style={draw, ellipse, minimum width=22mm, minimum height=11mm, align=center, inner sep=1pt, fill=orange!10},
+  net/.style={draw, cloud, cloud puffs=10, cloud puff arc=110, aspect=1.6, minimum width=17mm, minimum height=10mm, align=center, inner sep=0pt, fill=white},
+  link/.style={draw, thick}
+]
+
+% Eixo principal
+\node[gw] (ga) at (0,0) {\textit{Gateway}\\A};
+\node[net] (i1) at (5.9,0) {Internet};
+\node[srv] (sig) at (8.6,0) {Servidor de\\sinalização};
+\node[net] (i2) at (11.3,0) {Internet};
+\node[gw] (gb) at (17.3,0) {\textit{Gateway}\\B};
+
+% Roteadores e NATs centralizados entre Gateway e Internet
+% Lado A: Gateway A -> Roteador A -> NAT A -> Internet
+\coordinate (midA) at ($(ga.center)!0.5!(i1.center)$);
+\node[box, fill=green!8, anchor=east] (r1) at (midA) {Roteador\\A};
+\node[box, fill=red!8, anchor=west] (n1) at (r1.east) {NAT\\A};
+
+% Lado B: Internet -> NAT B -> Roteador B -> Gateway B
+\coordinate (midB) at ($(i2.center)!0.5!(gb.center)$);
+\node[box, fill=red!8, anchor=east] (n2) at (midB) {NAT\\B};
+\node[box, fill=green!8, anchor=west] (r2) at (n2.east) {Roteador\\B};
+
+% Dispositivos
+\node[dev, below=12mm of ga] (d1) {Dispositivo 1};
+\node[dev, below=12mm of gb] (d2) {Dispositivo 2};
+
+% Servidores auxiliares
+\node[srv] (stun) at (8.6,2.4) {Servidor\\STUN};
+\node[srv] (rl1) at (6.2,-2.6) {Servidor\\\textit{relay} 1};
+\node[net] (i3) at (8.6,-2.6) {Internet};
+\node[srv] (rl2) at (11.0,-2.6) {Servidor\\\textit{relay} 2};
+
+% Ligações
+\draw[link] (ga) -- (r1);
+\draw[link] (n1) -- (i1);
+\draw[link] (i1) -- (sig);
+\draw[link] (sig) -- (i2);
+\draw[link] (i2) -- (n2);
+\draw[link] (r2) -- (gb);
+\draw[link] (ga) -- (d1);
+\draw[link] (gb) -- (d2);
+\draw[link] (i1.north) |- (stun.west);
+\draw[link] (i2.north) |- (stun.east);
+\draw[link] (i1.south) |- (rl1.north);
+\draw[link] (i2.south) |- (rl2.north);
+\draw[link] (rl1) -- (i3);
+\draw[link] (i3) -- (rl2);
+
+% Caminho QUIC direto
+\draw[thick, dashed, black!70] (ga.north) .. controls (2,4.6) and (15.3,4.6) .. (gb.north)
+  node[pos=0.5, above, font=\sffamily\small, align=center] {Comunicação P2P direta com QUIC};
+
+\end{tikzpicture}%
+}

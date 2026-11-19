@@ -7,7 +7,7 @@ set -euo pipefail
 
 repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$repo_dir"
-artifact_root="$repo_dir/sim/physical/artifacts"
+artifact_root="$repo_dir/build/all/sim/physical/artifacts"
 role=${1:-}
 interface=${2:-}
 server_ip=${3:-}

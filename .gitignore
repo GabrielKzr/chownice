@@ -7,3 +7,5 @@ build
 sim/patchbay/target/
 sim/patchbay/artifacts/
 docs/experiments
+*/artifacts/
+functional-results-*
