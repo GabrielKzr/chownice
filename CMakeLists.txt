@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(QUIC_WebRTC_Like C)
+project(chownice C)
 
 include(CTest)
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules/common_functions.cmake")

@@ -1,4 +1,4 @@
-# QUIC_WebRTC_like
+# chownice
 
 Projeto experimental para estudar comunicacao P2P atraves de NAT com UDP hole punching, com duas frentes tecnicas:
 
