@@ -68,6 +68,13 @@ function(register_program_tests)
             list(APPEND nat_args --nat-rules "${nat_rules_file}")
         endif()
 
+        get_target_property(nat_profiles "${target}" PATCHBAY_NAT_PROFILES)
+        if(nat_profiles)
+            foreach(profile IN LISTS nat_profiles)
+                list(APPEND nat_args --nat "${profile}")
+            endforeach()
+        endif()
+
         add_dependencies("${target}" patchbay_runner)
         if(TARGET coturn_external)
             add_dependencies("${target}" coturn_external)

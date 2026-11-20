@@ -30,6 +30,17 @@
       "cacheVariables": {
         "BUILD_LONG_TESTS": true
       }
+    },
+    {
+      "name": "thesis",
+      "displayName": "PDF da tese",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/thesis",
+      "cacheVariables": {
+        "BUILD_TESTING": false,
+        "BUILD_THESIS": true,
+        "THESIS_ONLY": true
+      }
     }
   ],
   "buildPresets": [
@@ -43,6 +54,13 @@
       "targets": [
         "test_quic_ice_turn_long",
         "patchbay_runner"
+      ]
+    },
+    {
+      "name": "thesis",
+      "configurePreset": "thesis",
+      "targets": [
+        "thesis_pdf"
       ]
     }
   ],

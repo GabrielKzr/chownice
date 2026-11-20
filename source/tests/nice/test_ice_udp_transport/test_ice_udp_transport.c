@@ -40,7 +40,7 @@ static udp_transport_status_t signaling(udp_transport_t *transport, const char *
     g_string_append_printf(local, "a=ice-ufrag:%s\na=ice-pwd:%s\n", ufrag, password);
     for (const GSList *item = candidates; item != NULL; item = item->next) {
         const NiceCandidate *local_candidate = item->data;
-#ifdef ICE_REQUIRE_RELAY
+#if defined(ICE_REQUIRE_RELAY) || defined(ICE_TEST_FALLBACK)
         if (local_candidate->type == NICE_CANDIDATE_TYPE_RELAYED)
 #else
         if (local_candidate->type == NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE)
@@ -81,12 +81,14 @@ static int run_peer(const char *isp_address, gboolean controlling) {
         .local_address = getenv("PATCHBAY_LOCAL_ADDRESS"),
         .stun_server = isp_address,
         .stun_port = 3478,
-#ifdef ICE_REQUIRE_RELAY
+#if defined(ICE_REQUIRE_RELAY) || defined(ICE_TEST_FALLBACK)
         .turn_server = isp_address,
         .turn_port = 3478,
         .turn_username = "ice-test",
         .turn_password = "ice-test-password",
+#ifdef ICE_REQUIRE_RELAY
         .force_relay = TRUE,
+#endif
 #endif
         .signaling_cb = signaling
     };
@@ -144,10 +146,15 @@ static int run_peer(const char *isp_address, gboolean controlling) {
         g_printerr("ICE não selecionou um par.\n");
         goto cleanup;
     }
-#ifdef ICE_REQUIRE_RELAY
+#if defined(ICE_REQUIRE_RELAY) || defined(ICE_TEST_FALLBACK)
+#ifdef ICE_TEST_FALLBACK
+    if (local->type != NICE_CANDIDATE_TYPE_RELAYED &&
+        remote->type != NICE_CANDIDATE_TYPE_RELAYED) {
+#else
     if (local->type != NICE_CANDIDATE_TYPE_RELAYED ||
         remote->type != NICE_CANDIDATE_TYPE_RELAYED) {
-        g_printerr("ICE não selecionou relay nos dois lados.\n");
+#endif
+        g_printerr("ICE não selecionou o par relay esperado.\n");
 #else
     if (remote->type != NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE &&
         remote->type != NICE_CANDIDATE_TYPE_PEER_REFLEXIVE) {
@@ -159,8 +166,8 @@ static int run_peer(const char *isp_address, gboolean controlling) {
     nice_address_to_string(&local->addr, local_ip);
     nice_address_to_string(&remote->addr, remote_ip);
 
-#ifdef ICE_REQUIRE_RELAY
-    g_print("Peer %c TURN: relay %s:%u -> relay %s:%u.\n",
+#if defined(ICE_REQUIRE_RELAY) || defined(ICE_TEST_FALLBACK)
+    g_print("Peer %c TURN: %s:%u -> %s:%u.\n",
             controlling ? 'A' : 'B', local_ip, nice_address_get_port(&local->addr),
             remote_ip, nice_address_get_port(&remote->addr));
 #endif
@@ -191,7 +198,7 @@ cleanup:
         transport.opened || data.agent != NULL || data.context != NULL) {
         result = EXIT_FAILURE;
     }
-#ifdef ICE_REQUIRE_RELAY
+#if defined(ICE_REQUIRE_RELAY) || defined(ICE_TEST_FALLBACK)
     if (result == EXIT_SUCCESS) {
         uint32_t length = htonl(6);
         char reply[2];

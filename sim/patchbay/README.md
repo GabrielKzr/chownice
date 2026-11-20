@@ -55,6 +55,11 @@ obrigatório e positivo (segundos). Nome e labels são opcionais. O registro em
 já configurados, inclusive subdiretórios; executáveis sem essas propriedades
 não são executados pelo Patchbay. Não há lista manual de protocolos.
 
+A propriedade `PATCHBAY_NAT_PROFILES` aceita uma lista de pares `peer=tipo`,
+por exemplo `"peer_a=Strict;peer_b=Strict"`. Os peers são `peer_a` e `peer_b`;
+os tipos disponíveis são `None`, `Open`, `Moderate` e `Strict`. Cada peer
+não informado utiliza `Moderate`. O runner recebe cada par com `--nat`.
+
 Cada `.meta.cmake` também pode declarar `set(PATCHBAY_NAT_EXTRA_RULES ...)`,
 com uma instrução nftables por elemento. O helper guarda a lista no target;
 o registro gera `<target>.nat.nft` no build e passa `--nat-rules <arquivo>`

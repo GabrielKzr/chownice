@@ -50,7 +50,7 @@ Este trabalho concentra-se nas camadas de rede e de transporte, correspondentes 
 
 Na solução proposta, a comunicação entre os \textit{peers} depende dos mecanismos de travessia de NAT (Seção~\ref{sec:nat_traversal}) e do protocolo ICE (Seção~\ref{sec:ice}), que descobre e seleciona os candidatos de conexão. Sobre o caminho selecionado, o QUIC (Capítulo~\ref{chap:quic}) atua como protocolo de transporte e carrega os dados das aplicações TCP locais entre os \textit{peers}. A organização dessas etapas segue a referência arquitetural do WebRTC, descrita na Seção~\ref{sec:webrtc}.
 
-A arquitetura considerada neste trabalho, apresentada na Figura~\ref{fig:quic_p2p_architecture} da Introdução, é composta por dois \textit{gateways} e por servidores auxiliares. Este capítulo descreve os fundamentos teóricos das operações realizadas entre os \textit{peers}, os servidores e os demais elementos da arquitetura, e o Capítulo~\ref{chap:implementation} apresenta a implementação prática dessas operações.
+A arquitetura considerada neste trabalho, apresentada na Figura~\ref{fig:quic_p2p_architecture} da Introdução, é composta por dois \textit{gateways} (\textit{peers}) e por servidores auxiliares. Este capítulo descreve os fundamentos teóricos das operações realizadas entre os \textit{peers}, os servidores e os demais elementos da arquitetura, e o Capítulo~\ref{chap:implementation} apresenta a implementação prática dessas operações.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -138,7 +138,7 @@ A Figura~\ref{fig:hybrid_p2p} apresenta um exemplo desse modelo. Na Figura~\ref{
 
 \end{comment}
 
-\subsection{WebRTC como referência arquitetural}
+\subsection{WebRTC como Referência Arquitetural}
 \label{sec:webrtc}
 
 O WebRTC (\textit{Web Real-Time Communication}) permite a comunicação de áudio, vídeo e dados entre \textit{peers}, tendo sido desenvolvido inicialmente para aplicações de comunicação em tempo real entre navegadores \citep{RFC8825}. Sua organização constitui um exemplo do modelo de arquitetura híbrida apresentado na Seção~\ref{sec:hybrid_peer_to_peer_model}: serviços auxiliares participam do estabelecimento da conexão, enquanto os dados podem ser transportados diretamente entre os participantes. Quando a comunicação direta não é possível, o transporte pode utilizar servidores de retransmissão (\textit{relay}).
@@ -274,7 +274,7 @@ Na classificação clássica, os tipos \textit{Full Cone}, \textit{Restricted Co
     \item \textbf{\textit{Port-Restricted Cone}:} aceita pacotes apenas dos pares de endereço IP e porta previamente contatados.
 \end{itemize}
 
-No \textit{Symmetric NAT}, o mapeamento também depende do endereço e da porta de destino: uma mesma origem interna pode receber diferentes mapeamentos externos ao contatar destinos distintos. Apenas o destino contatado pode enviar pacotes de retorno pelo mapeamento correspondente \citep{RFC3489}.
+Existe ainda um quarto tipo chamado de \textit{Symmetric NAT}. No \textit{Symmetric NAT}, o mapeamento também depende do endereço e da porta de destino: uma mesma origem interna pode receber diferentes mapeamentos externos ao contatar destinos distintos. Apenas o destino contatado pode enviar pacotes de retorno pelo mapeamento correspondente \citep{RFC3489}.
 
 O termo \textit{Asymmetric NAT} é utilizado informalmente para designar os NATs não simétricos, agrupando os três tipos \textit{Cone}, sem constituir uma categoria padronizada pelos RFCs.
 
@@ -354,7 +354,7 @@ O RFC 4787 descreve esse comportamento a partir de dois eixos ortogonais: o comp
 \end{itemize}
 \end{comment}
 
-\subsubsection{Problema do NAT para comunicações P2P}
+\subsubsection{Problema do NAT para Comunicações P2P}
 \label{sec:nat_problem_for_p2p_communication}
 
 A sobreposição de endereços privados e sua ausência de roteabilidade global dificultam a comunicação entre dispositivos de redes distintas \citep{RFC1631, ford2005peer}. Enquanto o modelo cliente-servidor permite que dispositivos internos iniciem conexões com servidores públicos conhecidos, na comunicação P2P ambos os extremos podem estar atrás de NAT, sem conhecer previamente seus endereços externos. Além disso, a ocultação de endereços internos não constitui, por si só, uma garantia de privacidade ou segurança \citep{rfc5128, RFC4941}.

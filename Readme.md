@@ -47,6 +47,19 @@ compiladores, ferramentas Linux, GLib e Rust/Cargo estão entre os requisitos
 externos. Consulte [dependências do build](docs/build-dependencies.md) para a
 lista completa e [patches](patches/README.md) para as correções aplicadas.
 
+## PDF da tese
+
+Para gerar o PDF, instale o [Tectonic](https://tectonic-typesetting.github.io/).
+Ele pode baixar os arquivos LaTeX necessários na primeira execução.
+
+```sh
+cmake --preset thesis
+cmake --build --preset thesis
+```
+
+O PDF é gerado em `build/thesis/main.pdf`. O alvo copia os fontes para o
+diretório de build e não escreve arquivos gerados em `docs/text/`.
+
 ## Testes de rede e capturas
 
 O [Patchbay](sim/patchbay/README.md) cria peers e roteadores em namespaces Linux

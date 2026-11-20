@@ -215,6 +215,7 @@ function(add_test_class class_name tests_root)
         unset(TEST_EXTRA_DEFINES)
         unset(TEST_EXTRA_OPTIONS)
         unset(PATCHBAY_NAT_EXTRA_RULES)
+        unset(PATCHBAY_NAT_PROFILES)
  
         set(_meta "${_test_dir}/test.meta.cmake")
         if(EXISTS "${_meta}")
@@ -226,6 +227,10 @@ function(add_test_class class_name tests_root)
             set_property(TARGET ${_test_name} PROPERTY PATCHBAY_NAT_EXTRA_RULES "${PATCHBAY_NAT_EXTRA_RULES}")
         endif()
  
+        if(DEFINED PATCHBAY_NAT_PROFILES)
+            set_property(TARGET ${_test_name} PROPERTY PATCHBAY_NAT_PROFILES "${PATCHBAY_NAT_PROFILES}")
+        endif()
+
         if(DEFINED TEST_EXTRA_LIBS)
             target_link_libraries(${_test_name} PRIVATE ${TEST_EXTRA_LIBS})
         endif()

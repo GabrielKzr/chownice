@@ -11,6 +11,7 @@ pub struct Program<'a> {
     pub tcp_tunnel: bool,
     pub isp_script: Option<&'a Path>,
     pub nat_extra_rules: Option<&'a str>,
+    pub nat_profiles: &'a BTreeMap<String, Nat>,
 }
 
 pub struct Topology {
@@ -107,7 +108,7 @@ pub async fn build(program: &Program<'_>) -> Result<Topology> {
         .preset(RouterPreset::Home)
         .upstream(isp.id())
         .downstream_cidr("192.168.80.0/24".parse()?)
-        .nat(Nat::Moderate)
+        .nat(program.nat_profiles.get("peer_a").cloned().unwrap_or(Nat::Moderate))
         .firewall(Firewall::None)
         .build()
         .await?;
@@ -117,7 +118,7 @@ pub async fn build(program: &Program<'_>) -> Result<Topology> {
         .preset(RouterPreset::Home)
         .upstream(isp.id())
         .downstream_cidr("192.168.80.0/24".parse()?)
-        .nat(Nat::Moderate)
+        .nat(program.nat_profiles.get("peer_b").cloned().unwrap_or(Nat::Moderate))
         .firewall(Firewall::None)
         .build()
         .await?;

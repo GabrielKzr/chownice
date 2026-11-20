@@ -42,7 +42,7 @@ static udp_transport_status_t signaling(udp_transport_t *transport, const char *
     g_string_append_printf(local, "a=ice-ufrag:%s\na=ice-pwd:%s\n", ufrag, password);
     for (const GSList *item = candidates; item != NULL; item = item->next) {
         const NiceCandidate *local_candidate = item->data;
-#ifdef ICE_REQUIRE_RELAY
+#if defined(ICE_REQUIRE_RELAY) || defined(ICE_TEST_FALLBACK)
         if (local_candidate->type == NICE_CANDIDATE_TYPE_RELAYED)
 #else
         if (local_candidate->type == NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE)
@@ -150,7 +150,10 @@ static int wait_ice_ready(void) {
         !nice_agent_get_selected_pair(transport_data.agent, transport_data.stream_id, 1, &local, &remote)) {
         return -1;
     }
-#ifdef ICE_REQUIRE_RELAY
+#if defined(ICE_TEST_FALLBACK)
+    if (local->type != NICE_CANDIDATE_TYPE_RELAYED && remote->type != NICE_CANDIDATE_TYPE_RELAYED)
+        return -1;
+#elif defined(ICE_REQUIRE_RELAY)
     if (local->type != NICE_CANDIDATE_TYPE_RELAYED || remote->type != NICE_CANDIDATE_TYPE_RELAYED)
         return -1;
 #else
@@ -165,7 +168,7 @@ static int wait_ice_ready(void) {
     nice_address_to_string(&remote->addr, remote_ip);
     printf("Peer %c ICE READY: %s:%u -> %s:%u; %s.\n", ctrl.mode == 'c' ? 'A' : 'B',
            local_ip, nice_address_get_port(&local->addr), remote_ip, nice_address_get_port(&remote->addr),
-           ice_config.force_relay ? "relay/relay" : "direto/reflexivo");
+           local->type == NICE_CANDIDATE_TYPE_RELAYED || remote->type == NICE_CANDIDATE_TYPE_RELAYED ? "via relay" : "direto/reflexivo");
     udp_session.dst.sin_family = AF_INET;
     udp_session.dst.sin_port = htons(nice_address_get_port(&remote->addr));
     if (inet_pton(AF_INET, remote_ip, &udp_session.dst.sin_addr) != 1) return -1;
@@ -191,12 +194,14 @@ int main(int argc, char **argv) {
     ice_config.controlling = ctrl.mode == 'c';
     ice_config.stun_server = isp;
     ice_config.stun_port = 3478;
-#ifdef ICE_REQUIRE_RELAY
+#if defined(ICE_REQUIRE_RELAY) || defined(ICE_TEST_FALLBACK)
     ice_config.turn_server = isp;
     ice_config.turn_port = 3478;
     ice_config.turn_username = "ice-test";
     ice_config.turn_password = "ice-test-password";
+#ifdef ICE_REQUIRE_RELAY
     ice_config.force_relay = TRUE;
+#endif
 #endif
 
     struct sockaddr_in server = {.sin_family = AF_INET, .sin_port = htons(5555)};
@@ -243,7 +248,7 @@ cleanup:
     } else if (tcp_session.socket_fd >= 0) {
         close(tcp_session.socket_fd);
     }
-#ifdef ICE_REQUIRE_RELAY
+#if defined(ICE_REQUIRE_RELAY) || defined(ICE_TEST_FALLBACK)
     if (result == EXIT_SUCCESS) {
         uint32_t length = htonl(6);
         char reply[2];
